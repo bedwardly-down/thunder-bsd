@@ -1,0 +1,93 @@
+name: Build Packages
+
+on:
+  push:
+    paths-ignore:
+    - 'doc/**/'
+    - '**.md'
+    - 'appveyor.yml'
+    - '.travis.yml'
+  pull_request:
+    paths-ignore:
+    - 'doc/**/'
+    - '**.md'
+    - 'appveyor.yml'
+    - '.travis.yml'
+
+env:
+  VERSION: 2024.2
+  THUNDER_RELEASE: ${{ startsWith(github.ref, 'refs/tags/2') }}
+  DEPS: git llvm17 libinotify openal-soft xorg 7-zip cmake ninja pkgconf ccache
+  QT: qt5-widgets qt5-core qt5-gamepad qt5-gui qt5-svg qt5-xml qmake qt5 
+  CC: clang17
+  CXX: clang++17
+  LC_ALL: C
+  CCACHE_CFLAGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+  CCACHE_DIR: "ccache"
+  CCACHE_COMPRESS: "true"
+  CCACHE_COMPRESSLEVEL: "4"
+  CCACHE_MAXSIZE: "1G"
+  CCACHE_1: "13.2"
+  CCACHE_2: "13.3"
+  CCACHE_3: "14.0"
+  CCACHE_4: "14.1"
+  VM_GUESTNAME: "freebsd"
+
+jobs:
+  freebsd1:
+    runs-on: ubuntu-latest
+    name: FreeBSD CMake
+    steps:
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      shell: bash
+      run: |
+        echo "timestamp=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+    - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
+      id: bsd-1
+      uses: bedwardly-down/freebsd-vm@custom7
+      with:
+        envs: '
+          DEPS QT CC CXX
+          CCACHE_FLAGS
+          CCACHE_DIR
+          CCACHE_COMPRESS
+          CCACHE_COMPRESSLEVEL
+          CCACHE_MAXSIZE
+          CCACHE_4
+        '
+        usesh: true
+        sync: rsync
+        release: CCACHE_4
+        prepare: |
+          pkg install -y $DEPS
+          pkg install -y $QT
+        run: |
+          export CCACHE_DIR=$CCACHE_DIR-$CCACHE_4
+          export CCACHE_MAXSIZE=$CCACHE_MAXSIZE 
+          export CCACHE_COMPRESS=$CCACHE_COMPRESS 
+          export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL 
+          ccache -z
+          git clone --recursive --depth 1 https://github.com/thunder-engine/thunder
+          mkdir -pv tmp
+          cd tmp
+          CC=$CC CXX=$CXX cmake $CCACHE_FLAGS ../thunder -G "Ninja"
+          ninja
+          ninja install
+          mkdir -pv release
+          mv -v install-root release
+          7z a -t7z ../ThunderEngine-freebsd-$CCACHE_4-x86_64.7z release/install-root
+          ccache -s
+    - name: Cache FreeBSD ${{ env.CCACHE_4 }} ccache files
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/ccache.conf') }}
+        restore-keys: |
+          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
+    - name: Upload FreeBSD ${{ env.CCACHE_4 }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ThunderEngine-freebsd-${{ env.CCACHE_4 }}-x86_64.7z
+        path: ThunderEngine-freebsd-${{ env.CCACHE_4 }}-x86_64.7z
