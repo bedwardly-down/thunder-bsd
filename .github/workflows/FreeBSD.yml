@@ -68,7 +68,7 @@ jobs:
           export CCACHE_COMPRESS=$CCACHE_COMPRESS 
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL 
           ccache -z
-          git clone --recursive --depth 1 https://github.com/thunder-engine/thunder
+          git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
           cd tmp
           CC=$CC CXX=$CXX cmake $CCACHE_FLAGS ../thunder -G "Ninja"
