@@ -76,7 +76,6 @@ jobs:
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
- #         export VM_RSYNC="$VM_RSYNC"
           ccache -z
           git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
