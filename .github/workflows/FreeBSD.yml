@@ -47,7 +47,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          ${{ env.CCACHE_DIR }}
+          ${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
         key: FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}
         restore-keys: |
           FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}-
@@ -58,7 +58,7 @@ jobs:
       with:
         envs: '
           DEPS QT CC CXX
-          CCACHE_FLAGS
+          CCACHE_CFLAGS
           CCACHE_DIR
           CCACHE_COMPRESS
           CCACHE_COMPRESSLEVEL
@@ -80,7 +80,7 @@ jobs:
           git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
           cd tmp
-          CC=$CC CXX=$CXX cmake $CCACHE_FLAGS ../thunder -G "Ninja"
+          CC=$CC CXX=$CXX cmake $CCACHE_CFLAGS ../thunder -G "Ninja"
           ninja
           ninja install
           mkdir -pv release
