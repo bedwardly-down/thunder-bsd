@@ -38,11 +38,20 @@ jobs:
     runs-on: ubuntu-latest
     name: FreeBSD CMake
     steps:
-    - name: Prepare ccache timestamp
-      id: ccache_cache_timestamp
-      shell: bash
-      run: |
-        echo "timestamp=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+#    - name: Prepare ccache timestamp
+#      id: ccache_cache_timestamp
+#      shell: bash
+#      run: |
+#        echo "timestamp=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+    - name: Cache FreeBSD ${{ env.CCACHE_4 }} ccache files
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}
+        restore-keys: |
+          FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}-
+          FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
       uses: bedwardly-down/freebsd-vm@custom7
@@ -78,14 +87,6 @@ jobs:
           mv -v install-root release
           7z a -t7z ../ThunderEngine-freebsd-$CCACHE_4-x86_64.7z release/install-root
           ccache -s
-    - name: Cache FreeBSD ${{ env.CCACHE_4 }} ccache files
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ env.CCACHE_DIR }}
-        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/ccache.conf') }}
-        restore-keys: |
-          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
     - name: Upload FreeBSD ${{ env.CCACHE_4 }}
       uses: actions/upload-artifact@v4
       with:
