@@ -57,13 +57,13 @@ jobs:
       uses: bedwardly-down/freebsd-vm@rsync2
       with:
         envs: '
-          DEPS QT CC CXX
-          CCACHE_CFLAGS
-          CCACHE_DIR
-          CCACHE_COMPRESS
-          CCACHE_COMPRESSLEVEL
-          CCACHE_MAXSIZE
-          CCACHE_4
+          DEPS QT CC CXX 
+          CCACHE_CFLAGS 
+          CCACHE_DIR 
+          CCACHE_COMPRESS 
+          CCACHE_COMPRESSLEVEL 
+          CCACHE_MAXSIZE 
+          CCACHE_4 
         '
         usesh: true
         sync: rsync
