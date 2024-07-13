@@ -72,7 +72,7 @@ jobs:
           pkg install -y $DEPS
           pkg install -y $QT
         run: |
-          export CCACHE_DIR=$CCACHE_DIR-$CCACHE_4
+          export CCACHE_DIR=$HOME/$CCACHE_DIR-$CCACHE_4
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
