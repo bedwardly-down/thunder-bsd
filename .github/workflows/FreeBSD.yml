@@ -38,23 +38,23 @@ jobs:
     runs-on: ubuntu-latest
     name: FreeBSD CMake
     steps:
-#    - name: Prepare ccache timestamp
-#      id: ccache_cache_timestamp
-#      shell: bash
-#      run: |
-#        echo "timestamp=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      shell: bash
+      run: |
+        echo "timestamp=$(/bin/date -u "+%Y%m%d")" >> $GITHUB_OUTPUT
     - name: Cache FreeBSD ${{ env.CCACHE_4 }} ccache files
       uses: actions/cache@v4
       with:
         path: |
           ${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
-        key: FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}
+        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/stats') }}
         restore-keys: |
-          FreeBSD-ccache-${{ hashFiles('**/ccache.conf') }}-
+          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/stats') }}-
           FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
-      uses: bedwardly-down/freebsd-vm@rsync3
+      uses: bedwardly-down/freebsd-vm@rsync5
       with:
         envs: '
           DEPS QT CC CXX 
@@ -72,21 +72,23 @@ jobs:
           pkg install -y $DEPS
           pkg install -y $QT
         run: |
-          export CCACHE_DIR=$CCACHE_DIR-$CCACHE_4
-          export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
+          export CCACHE_DIR=$HOME/$CCACHE_DIR-$CCACHE_4
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
-          export VM_RSYNC=$CCACHE_DIR-$CCACHE_4
+          export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
+          export VM_RSYNC=$VM_GUESTNAME:work/$CCACHE_DIR
           ccache -z
           git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
           cd tmp
           CC=$CC CXX=$CXX cmake $CCACHE_CFLAGS ../thunder -G "Ninja"
-          ninja -j2
+          ninja
           ninja install
           mkdir -pv release
           mv -v install-root release
           7z a -t7z ../ThunderEngine-freebsd-$CCACHE_4-x86_64.7z release/install-root
+          ninja clean
+          rm -rf *
           ccache -s
     - name: Upload FreeBSD ${{ env.CCACHE_4 }}
       uses: actions/upload-artifact@v4
