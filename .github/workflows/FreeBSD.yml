@@ -54,7 +54,7 @@ jobs:
           FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
-      uses: bedwardly-down/freebsd-vm@rsync2
+      uses: bedwardly-down/freebsd-vm@rsync3
       with:
         envs: '
           DEPS QT CC CXX 
@@ -76,6 +76,7 @@ jobs:
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
+          export VM_RSYNC=$CCACHE_DIR-$CCACHE_4
           ccache -z
           git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
