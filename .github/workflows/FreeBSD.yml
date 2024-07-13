@@ -47,10 +47,10 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          $HOME/${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
-        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/0/stats') }}
+          $HOME/work/${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
+        key: FreeBSD-ccache-${{ hashFiles('**/stats') }}
         restore-keys: |
-          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/0/stats') }}-
+          FreeBSD-ccache-${{ hashFiles('**/stats') }}-
           FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
@@ -72,7 +72,7 @@ jobs:
           pkg install -y $DEPS
           pkg install -y $QT
         run: |
-          export CCACHE_DIR=$HOME/$CCACHE_DIR-$CCACHE_4
+          export CCACHE_DIR=/tmp/$CCACHE_DIR-$CCACHE_4
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
@@ -89,6 +89,8 @@ jobs:
           7z a -t7z ../ThunderEngine-freebsd-$CCACHE_4-x86_64.7z release/install-root
           ninja clean
           rm -rf *
+          cd ..
+          rm -rf thunder
           ccache -s
     - name: Upload FreeBSD ${{ env.CCACHE_4 }}
       uses: actions/upload-artifact@v4
