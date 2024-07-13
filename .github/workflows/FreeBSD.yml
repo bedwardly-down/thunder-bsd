@@ -48,9 +48,9 @@ jobs:
       with:
         path: |
           $HOME/${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
-        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/ccache.conf') }}
+        key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/0/stats') }}
         restore-keys: |
-          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/ccache.conf') }}-
+          FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/0/stats') }}-
           FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
