@@ -23,7 +23,7 @@ env:
   CXX: clang++17
   LC_ALL: C
   CCACHE_CFLAGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-  CCACHE_DIR: "ccache"
+  CCACHE_DIR: "$HOME/ccache"
   CCACHE_COMPRESS: "true"
   CCACHE_COMPRESSLEVEL: "4"
   CCACHE_MAXSIZE: "1G"
@@ -72,7 +72,7 @@ jobs:
           pkg install -y $DEPS
           pkg install -y $QT
         run: |
-          export CCACHE_DIR=$HOME/$CCACHE_DIR-$CCACHE_4
+          export CCACHE_DIR=$CCACHE_DIR-$CCACHE_4
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
