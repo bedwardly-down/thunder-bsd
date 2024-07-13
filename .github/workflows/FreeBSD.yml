@@ -23,7 +23,7 @@ env:
   CXX: clang++17
   LC_ALL: C
   CCACHE_CFLAGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
-  CCACHE_DIR: "$HOME/ccache"
+  CCACHE_DIR: "ccache"
   CCACHE_COMPRESS: "true"
   CCACHE_COMPRESSLEVEL: "4"
   CCACHE_MAXSIZE: "1G"
@@ -47,7 +47,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          ${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
+          $HOME/${{ env.CCACHE_DIR }}-${{ env.CCACHE_4 }}
         key: FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/stats') }}
         restore-keys: |
           FreeBSD-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}-${{ hashFiles('**/stats') }}-
@@ -76,7 +76,7 @@ jobs:
           export CCACHE_COMPRESS=$CCACHE_COMPRESS
           export CCACHE_COMPRESSLEVEL=$CCACHE_COMPRESSLEVEL
           export CCACHE_MAXSIZE=$CCACHE_MAXSIZE
-          export VM_RSYNC=$VM_GUESTNAME:work/$CCACHE_DIR
+          export VM_RSYNC=$VM_GUESTNAME:$CCACHE_DIR
           ccache -z
           git clone --recursive --depth 1 https://github.com/bedwardly-down/thunder-bsd thunder
           mkdir -pv tmp
