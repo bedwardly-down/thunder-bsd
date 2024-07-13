@@ -54,7 +54,7 @@ jobs:
           FreeBSD-ccache-
     - name: Build FreeBSD ${{ env.CCACHE_4 }} Packages
       id: bsd-1
-      uses: bedwardly-down/freebsd-vm@rsync6
+      uses: bedwardly-down/freebsd-vm@rsync7
       with:
         envs: '
           DEPS QT CC CXX 
