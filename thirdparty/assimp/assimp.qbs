@@ -35,6 +35,15 @@ Project {
         "../unzip/"
     ]
 
+    property stringList compilerWrappers: {
+        var wrappers = [];
+        if(qbs.targetOS.contains("linux")) {
+            wrappers.push("ccache")
+        }
+
+        return wrappers;
+    }
+
     StaticLibrary {
         name: "assimp"
         condition: assimp.desktop
@@ -59,6 +68,7 @@ Project {
         Depends { name: "pugixml" }
 
         cpp.includePaths: assimp.incPaths
+        cpp.compilerWrappers: assimp.compilerWrappers
         cpp.cxxLanguageVersion: assimp.languageVersion
         cpp.cxxStandardLibrary: assimp.standardLibrary
         cpp.minimumMacosVersion: assimp.osxVersion
