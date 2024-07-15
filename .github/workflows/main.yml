@@ -271,12 +271,12 @@ jobs:
         usesh: true
         sync: rsync
         prepare: |
-          pkg install -y llvm17 libinotify openal-soft xorg 7-zip cmake ninja pkgconf
+          pkg install -y llvm17 libinotify openal-soft xorg 7-zip cmake ninja pkgconf ccache4
           pkg install -y qt5-widgets qt5-core qt5-gamepad qt5-gui qt5-svg qt5-xml qmake qt5 
         run: |
           mkdir -pv thunder-build
           cd thunder-build
-          CC=clang17 CXX=clang++17 cmake ../thunder -G "Ninja"
+          CCACHE_DIR="ccache" CC=clang17 CXX=clang++17 cmake ../thunder -G "Ninja"
           ninja
           ninja install
           mkdir -pv release
