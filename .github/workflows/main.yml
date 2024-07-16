@@ -64,7 +64,7 @@ jobs:
     - name: Setup Qbs
       run: |
         qbs --version
-        qbs setup-toolchains --type clang
+        qbs setup-toolchains --type clang17
         qbs setup-qt --detect
         qbs config --list
   
