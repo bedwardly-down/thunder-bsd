@@ -64,7 +64,7 @@ jobs:
     - name: Setup Qbs
       run: |
         qbs --version
-        qbs setup-toolchains --type clang17
+        qbs setup-toolchains /usr/bin/clang++${{ env.CLANG_VERSION }} clang17
         qbs setup-qt --detect
         qbs config --list
   
@@ -78,7 +78,7 @@ jobs:
         ccache -z
         ln -s /usr/bin/ccache clang-${{ env.CLANG_VERSION }}
         ln -s /usr/bin/ccache clang++-${{ env.CLANG_VERSION }}
-        qbs install --all-products config:release profile:clang-${{ env.CLANG_VERSION }}
+        qbs install --all-products config:release profile:clang${{ env.CLANG_VERSION }}
         7z a -t7z ThunderEngine-linux-x86_64.7z release/install-root/
         ccache -s
         
