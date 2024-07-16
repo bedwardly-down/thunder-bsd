@@ -275,13 +275,13 @@ jobs:
         submodules: recursive
         path: 'thunder'
 
-#    - name: Prepare FreeBSD ccache
-#      if: steps.bsd_ccache.outputs.cache-hit != 'true'
-#      run: |
-#        mkdir -p ${{ env.CCACHE_DIR }}-${{ env.BSD_VERSION }}/0
-#        touch ${{ env.CCACHE_DIR }}-${{ env.BSD_VERSION }}/0/stats
-#        cd ..
-#        echo "Created new ccache hash"
+    - name: Prepare FreeBSD ccache
+      if: steps.bsd_ccache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ${{ env.CCACHE_DIR }}-${{ env.BSD_VERSION }}/tmp
+        touch ${{ env.CCACHE_DIR }}-${{ env.BSD_VERSION }}/tmp/inode-cache-64.v2
+        cd ..
+        echo "Created new ccache hash"
 
     - name: Restore/Create FreeBSD ccache
       id: bsd_ccache
@@ -289,9 +289,9 @@ jobs:
       with:
         path: |
           ${{ env.CCACHE_DIR }}-${{ env.BSD_VERSION }}
-        key: FreeBSD-ccache-${{ env.BSD_VERSION }}-${{ hashFiles('**/CMakeLists.txt') }}
+        key: FreeBSD-ccache-${{ env.BSD_VERSION }}-${{ hashFiles('**/inode-cache-64.v2') }}
         restore-keys: |
-          FreeBSD-ccache-${{ env.BSD_VERSION }}-${{ hashFiles('**/CMakeLists.txt') }}-
+          FreeBSD-ccache-${{ env.BSD_VERSION }}-${{ hashFiles('**/inode-cache-64.v2') }}-
           FreeBSD-ccache-
 
     - name: Build Thunder
