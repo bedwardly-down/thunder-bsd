@@ -20,6 +20,7 @@ env:
   VERSION: 2024.3
   THUNDER_RELEASE: ${{ startsWith(github.ref, 'refs/tags/2') }}
   BSD_VERSION: 14.1
+  CLANG_VERSION: 17
 
 jobs:
   version:
@@ -39,7 +40,7 @@ jobs:
         
   linux:
     name: Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: version
   
     steps:
@@ -51,7 +52,9 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install binutils g++-7 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev libopenal-dev
+        wget https://apt.llvm.org/llvm.sh
+        sudo bash llvm.sh ${{ env.CLANG_VERSION }}
+        sudo apt install binutils g++-12 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev libopenal-dev ccache
         
     - name: Install Qt
       run: |
@@ -63,7 +66,6 @@ jobs:
         qbs --version
         qbs setup-toolchains --detect
         qbs setup-qt --detect
-        qbs config defaultProfile
         qbs config --list
   
     - name: Build Qbs
@@ -73,8 +75,12 @@ jobs:
   
     - name: Build Thunder
       run: |
-        qbs install --all-products config:release
+        ccache -z
+        ln -s /usr/bin/ccache clang-${{ env.CLANG_VERSION }}
+        ln -s /usr/bin/ccache clang++-${{ env.CLANG_VERSION }}
+        qbs install --all-products config:release profile:clang-${{ env.CLANG_VERSION }}
         7z a -t7z ThunderEngine-linux-x86_64.7z release/install-root/
+        ccache -s
         
     - name: Upload Thunder
       uses: actions/upload-artifact@v2
@@ -101,7 +107,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install binutils g++-7 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev
+        sudo apt install libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev
         
     - name: Install Qt
       run: |
