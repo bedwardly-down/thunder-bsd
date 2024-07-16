@@ -273,9 +273,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: recursive
-        repository: 'thunder-engine/thunder'
         path: 'thunder'
-        ref: 'master'
 
 #    - name: Prepare FreeBSD ccache
 #      if: steps.bsd_ccache.outputs.cache-hit != 'true'
