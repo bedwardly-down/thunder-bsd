@@ -54,6 +54,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: worldEditor.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
