@@ -51,6 +51,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: builder.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
