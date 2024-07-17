@@ -27,6 +27,7 @@ Project {
 
     property string languageVersion: "c++17"
     property string standardLibrary: "libc++"
+    property string linkerVariant: "lld"
 
     property bool desktop: !qbs.targetOS.contains("android") && !qbs.targetOS.contains("ios") && !qbs.targetOS.contains("tvos")
     property string bundle: {
