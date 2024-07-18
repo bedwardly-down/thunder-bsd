@@ -20,6 +20,11 @@ Project {
         Depends { name: "bundle" }
         bundle.isBundle: false
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: spirvcross.linkerVariant
+        }
+
         cpp.defines: [ ]
         cpp.includePaths: spirvcross.incPaths
         cpp.cxxLanguageVersion: spirvcross.languageVersion

@@ -15,6 +15,7 @@ Project {
         "src",
         "../",
         "../engine/includes",
+        "../engine/includes/editor",
         "../engine/includes/resources",
         "../engine/includes/components",
         "../thirdparty/next/inc",

@@ -32,6 +32,11 @@ Project {
         }
 
         Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: angelscript.linkerVariant
+        }
+
+        Properties {
             condition: qbs.architecture === "x86_64" && qbs.targetOS.contains("windows")
             files: outer.concat(["source/as_callfunc_x64_msvc_asm.asm"])
         }
@@ -70,6 +75,11 @@ Project {
             condition: qbs.targetOS.contains("android")
             Android.ndk.appStl: angelscript.ANDROID_STL
             Android.ndk.platform: angelscript.ANDROID
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: angelscript.linkerVariant
         }
 
         Group {

@@ -47,6 +47,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: pipelinetools.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 

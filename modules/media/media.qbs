@@ -56,6 +56,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: media.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
             cpp.dynamicLibraries: ["openal"]
         }
@@ -142,6 +143,11 @@ Project {
         Properties {
             condition: qbs.targetOS.contains("darwin")
             cpp.weakFrameworks: ["OpenAL"]
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: media.linkerVariant
         }
 
         Group {

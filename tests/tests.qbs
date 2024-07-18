@@ -21,7 +21,7 @@ Project {
         "../engine/includes/components",
     ]
 
-    property bool enableCoverage: qbs.toolchain.contains("gcc") && !qbs.targetOS.contains("macos")
+    property bool enableCoverage: (qbs.toolchain.contains("gcc") || qbs.toolchain.contains("clang")) && !qbs.targetOS.contains("macos")
 
     QtApplication {
         name: "tests"
@@ -51,6 +51,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: tests.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 

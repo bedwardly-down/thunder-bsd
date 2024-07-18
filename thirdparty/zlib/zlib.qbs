@@ -28,6 +28,11 @@ Project {
             cpp.sonamePrefix: "@executable_path"
         }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: zlib.linkerVariant
+        }
+
         Group {
             name: "Install Dynamic zLib"
             fileTagsFilter: ["dynamiclibrary", "dynamiclibrary_import"]
@@ -46,6 +51,11 @@ Project {
 
         cpp.defines: [  ]
         cpp.includePaths: zlib.incPaths
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: zlib.linkerVariant
+        }
 
         Group {
             name: "Install Static zLib"

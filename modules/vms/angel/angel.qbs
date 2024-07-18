@@ -55,6 +55,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: angel.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 
@@ -116,6 +117,11 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("darwin")
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: angel.linkerVariant
         }
 
         Group {

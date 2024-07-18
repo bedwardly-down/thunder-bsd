@@ -58,6 +58,11 @@ Project {
         Depends { name: "cpp" }
         Depends { name: "pugixml" }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: assimp.linkerVariant
+        }
+
         cpp.includePaths: assimp.incPaths
         cpp.cxxLanguageVersion: assimp.languageVersion
         cpp.cxxStandardLibrary: assimp.standardLibrary

@@ -18,6 +18,11 @@ Project {
         Depends { name: "bundle" }
         bundle.isBundle: false
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: pugixml.linkerVariant
+        }
+
         cpp.includePaths: pugixml.incPaths
         cpp.cxxLanguageVersion: pugixml.languageVersion
         cpp.cxxStandardLibrary: pugixml.standardLibrary

@@ -22,5 +22,10 @@ Project {
         cpp.cxxLanguageVersion: irrxml.languageVersion
         cpp.cxxStandardLibrary: irrxml.standardLibrary
         cpp.minimumMacosVersion: irrxml.osxVersion
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: irrxml.linkerVariant
+        }
     }
 }

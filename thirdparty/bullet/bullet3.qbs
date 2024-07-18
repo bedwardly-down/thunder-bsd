@@ -47,6 +47,11 @@ Project {
         }
 
         Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: bullet3.linkerVariant
+        }
+
+        Properties {
             condition: qbs.targetOS.contains("android")
             Android.ndk.appStl: bullet3.ANDROID_STL
             Android.ndk.platform: bullet3.ANDROID

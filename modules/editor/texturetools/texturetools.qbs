@@ -43,6 +43,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: texturetools.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 

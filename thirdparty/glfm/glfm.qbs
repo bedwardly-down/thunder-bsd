@@ -46,6 +46,11 @@ Project {
             files: outer.concat(["src/glfm_platform_ios.m"])
         }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: glfm.linkerVariant
+        }
+
         Group {
             name: "Install Static glfm"
             fileTagsFilter: product.type

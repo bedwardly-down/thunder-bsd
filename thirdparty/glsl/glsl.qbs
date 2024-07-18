@@ -45,5 +45,10 @@ Project {
             condition: qbs.targetOS.contains("unix")
             files: outer.concat(["glslang/OSDependent/Unix/ossource.cpp"])
         }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: glsl.linkerVariant
+        }
     }
 }

@@ -93,6 +93,7 @@ Project {
             condition: qbs.targetOS.contains("linux")
             cpp.defines: outer.concat(["_GLFW_X11"])
             cpp.dynamicLibraries: [ "X11", "Xrandr", "Xi", "Xxf86vm", "Xcursor", "Xinerama" ]
+            cpp.linkerVariant: glfw.linkerVariant
         }
 
         Properties {
@@ -129,6 +130,7 @@ Project {
 		Properties {
             condition: qbs.targetOS.contains("linux")
             cpp.defines: outer.concat(["_GLFW_X11"])
+            cpp.linkerVariant: glfw.linkerVariant
         }
 
         Properties {

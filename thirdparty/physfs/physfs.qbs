@@ -41,6 +41,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: physfs.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
@@ -72,6 +73,11 @@ Project {
         Properties {
             condition: qbs.targetOS.contains("darwin")
             cpp.defines: outer.concat(["PHYSFS_DARWIN"])
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: physfs.linkerVariant
         }
 
         Group {

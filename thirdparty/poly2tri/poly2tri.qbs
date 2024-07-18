@@ -17,6 +17,11 @@ Project {
         Depends { name: "bundle" }
         bundle.isBundle: false
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: poly2tri.linkerVariant
+        }
+
         cpp.includePaths: poly2tri.incPaths
         cpp.cxxLanguageVersion: poly2tri.languageVersion
         cpp.cxxStandardLibrary: poly2tri.standardLibrary

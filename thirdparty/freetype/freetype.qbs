@@ -68,6 +68,11 @@ Project {
             cpp.sonamePrefix: "@executable_path"
         }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: freetype.linkerVariant
+        }
+
         Group {
             name: "Install Dynamic Platform"
             fileTagsFilter: ["dynamiclibrary", "dynamiclibrary_import"]
@@ -92,6 +97,11 @@ Project {
             condition: qbs.targetOS.contains("android")
             Android.ndk.appStl: freetype.ANDROID_STL
             Android.ndk.platform: freetype.ANDROID
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: freetype.linkerVariant
         }
 
         Group {

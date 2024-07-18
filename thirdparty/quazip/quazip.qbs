@@ -24,6 +24,11 @@ Project {
         Depends { name: "Qt"; submodules: ["core"]; }
         bundle.isBundle: false
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: quazip.linkerVariant
+        }
+
         cpp.defines: ["QUAZIP_BUILD", "NOMINMAX"]
         cpp.includePaths: quazip.incPaths
         cpp.libraryPaths: [ ]

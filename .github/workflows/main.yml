@@ -41,7 +41,7 @@ jobs:
         
   linux:
     name: Linux
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: version
   
     steps:
@@ -54,8 +54,8 @@ jobs:
       run: |
         sudo apt update
         wget https://apt.llvm.org/llvm.sh
-        sudo bash llvm.sh ${{ env.CLANG_VERSION }}
-        sudo apt install binutils g++-${{ env.GCC_VERSION }} libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev libopenal-dev ccache lld-${{ env.CLANG_VERSION }}
+        sudo bash llvm.sh ${{ env.CLANG_VERSION }} all
+        sudo apt install binutils g++-${{ env.GCC_VERSION }} libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev libopenal-dev ccache libstdc++-12-dev build-essential compiler-rt
         
     - name: Install Qt
       run: |

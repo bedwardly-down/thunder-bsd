@@ -21,5 +21,10 @@ Project {
         bundle.isBundle: false
 
         cpp.includePaths: gtest.incPaths
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: gtest.linkerVariant
+        }
     }
 }

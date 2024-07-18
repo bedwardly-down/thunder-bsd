@@ -53,6 +53,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: bullet.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 
@@ -128,6 +129,11 @@ Project {
         Properties {
             condition: qbs.targetOS.contains("darwin")
 			cpp.commonCompilerFlags: "-Wno-argument-outside-range"
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: bullet.linkerVariant
         }
 
         Group {

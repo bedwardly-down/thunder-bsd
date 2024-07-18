@@ -26,8 +26,19 @@ Project {
     property string tvosVersion: "10.0"
 
     property string languageVersion: "c++17"
-    property string standardLibrary: "libc++"
-    property string linkerVariant: "lld"
+    property string standardLibrary: {
+        if(qbs.toolchain.includes("clang") && qbs.targetOS.contains("linux")) {
+            return "libstdc++"
+        }
+        return "libc++"
+    }
+
+    property string linkerVariant: {
+        if(qbs.toolchain.includes("clang")) {
+            return "lld"
+        }
+        return "gold"
+    }
 
     property bool desktop: !qbs.targetOS.contains("android") && !qbs.targetOS.contains("ios") && !qbs.targetOS.contains("tvos")
     property string bundle: {

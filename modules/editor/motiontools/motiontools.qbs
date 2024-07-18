@@ -46,6 +46,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: motiontools.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 

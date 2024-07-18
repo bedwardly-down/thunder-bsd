@@ -21,6 +21,11 @@ Project {
         cpp.defines: [  ]
         cpp.includePaths: glad.incPaths
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: glad.linkerVariant
+        }
+
         Group {
             name: "Install Static GLAD"
             fileTagsFilter: product.type

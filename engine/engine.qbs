@@ -75,6 +75,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: engine.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
@@ -171,6 +172,11 @@ Project {
             condition: qbs.targetOS.contains("tvos")
             files: outer.concat(["src/adapters/platformadaptor.cpp", "src/adapters/mobileadaptor.cpp", "src/adapters/appleplatform.mm"])
             cpp.defines: ["THUNDER_MOBILE", "TARGET_OS_TV"]
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: engine.linkerVariant
         }
 
         Group {

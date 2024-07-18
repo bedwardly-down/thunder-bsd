@@ -34,6 +34,11 @@ Project {
             cpp.sonamePrefix: "@executable_path"
         }
 
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: ogg.linkerVariant
+        }
+
         Group {
             name: "Install Dynamic Ogg"
             fileTagsFilter: ["dynamiclibrary", "dynamiclibrary_import"]
@@ -52,6 +57,11 @@ Project {
 
         cpp.defines: [  ]
         cpp.includePaths: ogg.incPaths
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: ogg.linkerVariant
+        }
 
         Group {
             name: "Install Static Ogg"

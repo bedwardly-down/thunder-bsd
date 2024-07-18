@@ -53,6 +53,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: vorbis.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
@@ -113,6 +114,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: vorbis.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
@@ -141,6 +143,11 @@ Project {
 
         cpp.defines: [  ]
         cpp.includePaths: "../libogg/src"
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: vorbis.linkerVariant
+        }
 
         Group {
             name: "Install Static VorbisFile"

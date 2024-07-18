@@ -57,6 +57,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: rendergl.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 
@@ -124,6 +125,11 @@ Project {
         Properties {
             condition: qbs.targetOS.contains("darwin")
             cpp.weakFrameworks: ["OpenGL"]
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: rendergl.linkerVariant
         }
 
         Group {

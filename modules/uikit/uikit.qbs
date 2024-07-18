@@ -61,6 +61,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: uikit.linkerVariant
             cpp.rpaths: "$ORIGIN/../lib"
         }
 
@@ -120,6 +121,11 @@ Project {
             condition: qbs.targetOS.contains("android")
             Android.ndk.appStl: uikit.ANDROID_STL
             Android.ndk.platform: uikit.ANDROID
+        }
+
+        Properties {
+            condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: uikit.linkerVariant
         }
 
         Group {

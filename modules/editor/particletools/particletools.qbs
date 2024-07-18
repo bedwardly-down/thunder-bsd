@@ -42,6 +42,7 @@ Project {
 
         Properties {
             condition: qbs.targetOS.contains("linux")
+            cpp.linkerVariant: particletools.linkerVariant
             cpp.rpaths: "$ORIGIN/../../lib"
         }
 
