@@ -15,8 +15,15 @@ on:
     - '.travis.yml'
 
 env:
+  # QT variables
   QT_VERSION: 5.15.2
+  QT6_VERSION: 6.7.2
+  QT_BUILD_FLAGS: "-optimized-qmake -opensource -nomake tests -nomake tools -nomake examples -confirm-license -ccache -linker lld -silent -release -optimize-size"
+  QT_CMAKE_FLAGS: ""
+  QT_MODULES: "qtbase,qtmultimedia,qtsvg,qtimageformats,qttools,qtxmlpatterns,qtdeclarative,qtquick3d,qtrepotools"
   QTCREATOR_VERSION: 11.0.3
+
+  # Thunder variables
   VERSION: 2024.3
   THUNDER_RELEASE: ${{ startsWith(github.ref, 'refs/tags/2') }}
 
@@ -26,18 +33,23 @@ env:
   CCACHE_COMPRESSLEVEL: "4"
   CCACHE_MAXSIZE: "512M"
   CCACHE_CFLAGS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+  CCACHE_SLOPPINESS: "include_file_mtime,pch_defines,system_headers,include_file_ctime"
 
-  # BSD related variables
-  BSD_DEPS: "llvm17 libinotify openal-soft xorg 7-zip cmake-core ninja pkgconf ccache4"
+  # Compiler variables
+  CLANG_VERSION: "17"
+  CXX_STANDARD_VERSION: "c++17"
+
+  # BSD variables
+  BSD_DEPS: "libinotify openal-soft xorg 7-zip cmake-core ninja pkgconf ccache4"
   BSD_QT: "qt5-widgets qt5-core qt5-gamepad qt5-gui qt5-svg qt5-xml qt5 qmake"
-  BSD_CC: "clang17"
-  BSD_CXX: "clang++17"
+  BSD_CC: "clang$CLANG_VERSION"
+  BSD_CXX: "clang++$CLANG_VERSION"
   BSD_VERSION: "14.1"
 
 jobs:
   version:
     name: Determine Thunder version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
       release: ${{ steps.get-version.outputs.release }}
@@ -49,45 +61,1122 @@ jobs:
         if [[ "$THUNDER_RELEASE" == 'true' ]]; then echo "::set-output name=version::${VERSION}" ; fi
         if [[ "$THUNDER_RELEASE" != 'true' ]]; then echo "::set-output name=version::${VERSION}-SNAPSHOT" ; fi
         echo "::set-output name=release::${THUNDER_RELEASE}"
-        
-  linux:
-    name: Linux
-    runs-on: ubuntu-20.04
+
+  qtdepscache:
+    name: Prepare Qt Shared Dependencies
+    runs-on: ubuntu-22.04
     needs: version
-  
+
+    env:
+      FLAGS_DIR: "flags/shared/deps"
+      DEPS_DIR: "shared/deps"
+
     steps:
+    - name: Load Qt Shared Dependencies Completion Flag
+      id: qt_shared_deps_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt-shared-deps-flags
+        restore-keys: |
+          qt-shared-deps-flags-
+
     - name: Checkout repository
-      uses: actions/checkout@v2
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
       with:
         submodules: recursive
-  
-    - name: Install dependencies
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
       run: |
-        sudo apt update
-        sudo apt install binutils g++-7 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev libopenal-dev
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        bash thunder/build/prepare-apt-sources.sh
+
+        mkdir -pv ${{ env.DEPS_DIR }}
+
+    - name: Download Qt Shared Dependencies
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+
+        sudo apt-get update
+        cd ${{ env.DEPS_DIR }}
+        bash $TLD/thunder/build/download-qt-shared-deps.sh
+        cd $TLD
+
+    - name: Prepare Qt Shared Dependencies cache
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
+      run: |
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv /etc/apt/sources* ${{ env.DEPS_DIR }}
+        sudo cp -rfv /etc/apt/trusted* ${{ env.DEPS_DIR }}
+        sudo cp -rfv /${CACHE}/${ARCHIVES}/*.deb ${{ env.DEPS_DIR }}
+
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    - name: Cache Qt Shared Dependencies
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+
+    - name: Cache Qt Shared Dependencies Completion Flag
+      if: steps.qt_shared_deps_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt-shared-deps-flags
+
+  qt5prepare:
+    name: Prepare Qt5 Compilation Chain
+    runs-on: ubuntu-22.04
+    needs: version
+
+    env:
+      FLAGS_DIR: "flags/qt5/source"
+      QT5_DEPS_DIR: "qt5/deps"
+      SOURCE_DIR: "qt5/source"
+
+    steps:
+    - name: Load Qt5 Source Completion Flag
+      id: qt5_source_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-source-flags
+        restore-keys: |
+          qt5-source-flags-
+
+    - name: Checkout repository
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        bash $TLD/thunder/build/prepare-apt-sources.sh
+
+        mkdir -pv ${{ env.QT5_DEPS_DIR }} ${{ env.SOURCE_DIR }}
+
+    - name: Download Qt5 Dependencies
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+
+        sudo apt-get update
+        cd ${{ env.QT5_DEPS_DIR }}
+        bash $TLD/thunder/build/download-qt5-deps.sh
+        cd $TLD
+
+    - name: Checkout Qt5 from git
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        github-server-url: 'https://code.qt.io/cgit/'
+        repository: 'qt/qt5.git'
+        path: '${{ env.SOURCE_DIR }}'
+        ref: 'v${{ env.QT_VERSION }}'
+
+    - name: Checkout Qt5 submodules from git
+      id: qt5_git
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+
+        cd ${{ env.SOURCE_DIR }}
+        perl init-repository -f --module-subset=${{ env.QT_MODULES }},qtgraphicaleffects,qtquickcontrols2
+        cd $TLD
+
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    - name: Cache Qt5 Source
+      id: qt5_source
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          qt5
+        key: qt5-source
+
+    - name: Cache Qt5 Source Completion Flag
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-source-flags
+      
+  qt6prepare:
+    name: Prepare Qt6 Compilation Chain
+    runs-on: ubuntu-22.04
+    needs: version
+
+    env:
+      FLAGS_DIR: "flags/qt6/source"
+      QT6_DEPS_DIR: "qt6/deps"
+      SOURCE_DIR: "qt6/source"
+
+    steps:
+    - name: Load Qt6 Source Completion Flag
+      id: qt6_source_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt6-source-flags
+        restore-keys: |
+          qt6-source-flags-
+
+    - name: Checkout repository
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        bash $TLD/thunder/build/prepare-apt-sources.sh
+
+        mkdir -pv ${{ env.QT6_DEPS_DIR }} ${{ env.SOURCE_DIR }}
+
+    - name: Download Qt6 Dependencies
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+
+        sudo apt-get update
+        cd ${{ env.QT6_DEPS_DIR }}
+        bash $TLD/thunder/build/download-qt6-deps.sh
+        cd $TLD
+
+    - name: Checkout Qt6 from git
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        github-server-url: 'https://code.qt.io/cgit/'
+        repository: 'qt/qt5.git'
+        path: '${{ env.SOURCE_DIR }}'
+        ref: 'v${{ env.QT6_VERSION }}'
+
+    - name: Checkout Qt6 submodules from git
+      id: qt6_git
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+
+        cd ${{ env.SOURCE_DIR }}
+        perl init-repository -f --module-subset=${{ env.QT_MODULES }},qt5compat,qtshadertools,qtquicktimeline
+        cd $TLD
+
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    - name: Cache Qt6 Source
+      id: qt6_source
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          qt6
+        key: qt6-source
+
+    - name: Cache Qt6 Source Completion Flag
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt6-source-flags
+
+  qtcreatorprepare:
+    name: Prepare QtCreator Compilation Chain
+    runs-on: ubuntu-22.04
+    needs: version
+
+    env:
+      FLAGS_DIR: "flags/qtcreator/source"
+      QTCREATOR_DEPS_DIR: "qtcreator/deps"
+      SOURCE_DIR: "qtcreator/source"
+
+    steps:
+    - name: Load QtCreator Source Completion Flag
+      id: qtcreator_source_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qtcreator-source-flags
+        restore-keys: |
+          qtcreator-source-flags-
+
+    - name: Checkout repository
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        bash $TLD/thunder/build/prepare-apt-sources.sh
+
+        mkdir -pv ${{ env.QTCREATOR_DEPS_DIR }}
+
+    - name: Download QtCreator Dependencies
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+
+        sudo apt-get update
+        mkdir -pv ${{ env.QTCREATOR_DEPS_DIR }} ${{ env.SOURCE_DIR }}
+        cd ${{ env.QTCREATOR_DEPS_DIR }}
+        bash $TLD/thunder/build/download-qtcreator-deps.sh
+        cd $TLD
+
+    - name: Checkout QtCreator Sources
+      uses: actions/checkout@v4
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      with:
+        github-server-url: 'https://code.qt.io/cgit/'
+        repository: 'qt-creator/qt-creator.git'
+        path: '${{ env.SOURCE_DIR }}'
+        ref: 'v${{ env.QTCREATOR_VERSION }}'
+        submodules: recursive
+
+    - name: Checkout QtCreator submodules from git
+      id: qtcreator_git
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      run: |
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    - name: Create QtCreator Source cache
+      id: qtcreator_source
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          qtcreator
+        key: qtcreator-source
+
+    - name: Cache QtCreator Source Completion Flag
+      if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qtcreator-source-flags
+
+  qt5static:
+    name: Compile Qt5 Static Build
+    runs-on: ubuntu-22.04
+    needs: [qtdepscache, qt5prepare]
+
+    env:
+      FLAGS_DIR: "flags/qt5/static"
+      DEPS_DIR: "shared/deps"
+      QT5_DEPS_DIR: "qt5/deps"
+      SOURCE_DIR: "qt5/source"
+      PREFIX_DIR: "qt5/static"
+      CCACHE_DIR: "qt5/ccache"
+
+    steps:
+    - name: Load Qt5 Static Completion Flag
+      id: qt5_static_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-static-flags
+        restore-keys: |
+          qt5-static-flags-
+
+    - name: Load Qt5 Static ccache Flag
+      id: qt5_static_ccache
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/ccache
+        key: qt5-ccache-flags
+        restore-keys: |
+          qt5-ccache-flags-
+
+    - name: Load Qt5 Source cache
+      id: qt5_source
+      if: steps.qt5_static_completion.outputs.ccache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qt5
+        key: qt5-source
+        restore-keys: |
+          qt5-source-
+
+    - name: Prepare Qt5 ccache key
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true' && steps.qt5_static_ccache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ${{ env.CCACHE_DIR }}
+        touch ${{ env.CCACHE_DIR }}/ccache-hits.txt
+        echo "Created new Qt5 ccache hash"
+
+    - name: Load Qt5 ccache
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true' && always()
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
         
-    - name: Install Qt
+    - name: Load Qt Dependencies cache
+      id: qt5_deps
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+        restore-keys: |
+          qt-shared-deps-
+
+    - name: Checkout repository
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
       run: |
-        sudo ./build/install-qt.sh --version ${QT_VERSION} qtbase qtmultimedia qtscript qtsvg qtimageformats qtgraphicaleffects qtquickcontrols2 qttools qtxmlpatterns qtdeclarative qtgamepad icu | tee -a $GITHUB_PATH
-        sudo ./build/install-qt.sh --version ${QTCREATOR_VERSION} qtcreator | tee -a $GITHUB_PATH
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Install Qt5 Dependencies
+      id: qt5_install
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        
+        sudo apt-get update
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv ${{ env.DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.QT5_DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+
+        bash $TLD/thunder/build/install-qt-shared-deps.sh
+        bash $TLD/thunder/build/install-qt5-deps.sh
+
+    - name: Build Qt5
+      id: qt5_build
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}
+        export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
+        export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
+        export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
+        export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+
+        ccache -z
+        mkdir -p build
+        cd build
+
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/lib/llvm-${{ env.CLANG_VERSION }}/bin/llvm-config"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        make -j$(nproc)
+        make install
+        cd $TLD
+        echo "$(ccache -s | grep -a2 Hits)" > $CCACHE_DIR/ccache-hits.txt
+
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete ${{ env.FLAGS_DIR }}/ccache
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+        touch ${{ env.FLAGS_DIR }}/ccache/flag
+
+    - name: Cache Qt5 Static Build
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt5-static
+
+    - name: Cache Qt5 Static Build Completion Flag
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-static-flags
+
+    - name: Cache Qt5 ccache
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+
+    - name: Cache Qt5 ccache Flag
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/ccache
+        key: qt5-ccache-flags
+        
+  qt6static:
+    name: Compile Qt6 Static Build
+    runs-on: ubuntu-22.04
+    needs: [qtdepscache, qt6prepare]
+
+    env:
+      FLAGS_DIR: "flags/qt6/static"
+      DEPS_DIR: "shared/deps"
+      QT6_DEPS_DIR: "qt6/deps"
+      SOURCE_DIR: "qt6/source"
+      PREFIX_DIR: "qt6/static"
+
+    steps:
+    - name: Load Qt6 Static Completion Flag
+      id: qt6_static_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt6-static-flags
+        restore-keys: |
+          qt6-static-flags-
+
+    - name: Load Qt6 Static ccache Flag
+      id: qt6_static_ccache
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/ccache
+        key: qt6-ccache-flags
+        restore-keys: |
+          qt6-ccache-flags-
+
+    - name: Load Qt Shared Dependencies cache
+      id: qt_shared
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+        restore-keys: |
+          qt-shared-deps-
+        
+    - name: Load Qt6 Source cache
+      id: qt6_source
+      if: steps.qt6_static_completion.outputs.ccache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qt6
+        key: qt6-source
+        restore-keys: |
+          qt6-source-
+
+    - name: Prepare Qt6 ccache key
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true' && steps.qt6_static_ccache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ${{ env.CCACHE_DIR }}
+        touch ${{ env.CCACHE_DIR }}/ccache-hits.txt
+        echo "Created new Qt6 ccache hash"
+          
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      run: |
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Install Qt6 Dependencies
+      id: qt6_install
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+
+        sudo apt-get update
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv ${{ env.DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.QT6_DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+
+        bash $TLD/thunder/build/install-qt-shared-deps.sh
+        bash $TLD/thunder/build/install-qt6-deps.sh
+ 
+    - name: Fix LibUnwind CMake Detection for Clang 17
+      id: qt6_patch
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      run: |
+        sudo cp -rfv thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
+    - name: Build Qt6
+      id: qt6_build
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}-qt6
+        export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
+        export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
+        export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
+        export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+        export LDFLAGS="$LDFLAGS -lc++abi"
+
+        ccache -z
+        mkdir -p build
+        cd build
+
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/lib/llvm-${{ env.CLANG_VERSION }}/bin/llvm-config"
+        bash -c "alias lld=$LLVM_INSTALL_DIR/bin/lld-${{ env.CLANG_VERSION }}"
+        bash -c "alias ld.lld=$LLVM_INSTALL_DIR/bin/ld.lld-${{ env.CLANG_VERSION }}"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        cmake --build . --parallel $(nproc)
+        cmake --install .
+        cd $TLD
+        echo "$(ccache -s | grep -a2 Hits)" > $CCACHE_DIR/ccache-hits.txt
+
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete ${{ env.FLAGS_DIR }}/ccache
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+        touch ${{ env.FLAGS_DIR }}/ccache/flag
+
+    - name: Cache Qt6 Static Build
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt6-static
+
+    - name: Cache Qt6 Static Build Completion Flag
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt6-static-flags
+
+    - name: Cache Qt6 ccache
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qt6-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+
+    - name: Cache Qt6 ccache Flag
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/ccache
+        key: qt6-ccache-flags
+
+  qtcreatorcache:
+    name: Compile QtCreator Static Build
+    runs-on: ubuntu-22.04
+    needs: [qtdepscache, qt6static, qtcreatorprepare]
+
+    env:
+      FLAGS_DIR: "flags/qtcreator/static"
+      DEPS_DIR: "shared/deps"
+      QTCREATOR_DEPS_DIR: "qtcreator/deps"
+      SOURCE_DIR: "qtcreator/source"
+      PREFIX_DIR: "qtcreator/static"
+      CCACHE_DIR: "qtcreator/ccache"
+
+    steps:
+    - name: Restore/Create QtCreator ccache
+      id: qtcreator_ccache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qtcreator-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qtcreator-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
+
+    - name: Restore/Create Qt6 Build cache
+      id: qt6_static
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt6-static
+        restore-keys: |
+          qt6-static-
+
+    - name: Restore/Create QtCreator Build cache
+      id: qtcreator_static
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qtcreator-static
+        restore-keys: |
+          qtcreator-static-
   
+    - name: Load Qt Shared Dependencies cache
+      id: qt_shared_deps
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+        restore-keys: |
+          qt-shared-deps-
+        
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      run: |
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Install Qt6 Dependencies
+      id: qt5_install
+      if: steps.qtcreator_static.outputs.cache-hit != 'true'
+      run: |
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        sudo apt-get update
+
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv ${{ env.DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.QTCREATOR_DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+
+        bash thunder/build/install-qt-shared-deps.sh
+        bash thunder/build/install-qtcreator-deps.sh
+
+    - name: Install QtCreator Dependencies
+      if: steps.qtcreator_static.outputs.cache-hit != 'true'
+      run: |
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        bash thunder/build/install-qtcreator-deps.sh
+
+    - name: Checkout QtCreator Sources
+      uses: actions/checkout@v4
+      if: steps.qtcreator_ccache.outputs.cache-hit != 'true'
+      with:
+        github-server-url: 'https://code.qt.io/cgit/'
+        repository: 'qt-creator/qt-creator.git'
+        path: 'qtcreator'
+        ref: '${{ env.QTCREATOR_VERSION }}'
+        submodules: recursive
+       
+    - name: Build QtCreator
+      if: steps.qtcreator_static.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}
+        export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
+        export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
+        export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
+        export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+
+        export CC=clang-${{ env.CLANG_VERSION }}
+        export CXX=clang++-${{ env.CLANG_VERSION }}
+
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+
+        ccache -z
+        cmake -G Ninja ${{ env.CCACHE_CFLAGS }} -S qtcreator -B build -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX=$TLD/${{ env.PREFIX_DIR }} -DCMAKE_SHARED_LIBS=OFF
+        cmake --build . --parallel $(nproc)
+        cmake --install .
+        echo "$(ccache -s | grep -a2 Hits)" > $CCACHE_DIR/ccache-hits.txt
+
+  qt5linux:
+    name: Compile Linux Qt5 Dynamic Build
+    runs-on: ubuntu-22.04
+    needs: [qtdepscache, qt5static]
+
+    env:
+      FLAGS_DIR: "flags/qt5/linux"
+      DEPS_DIR: "shared/deps"
+      QT5_DEPS_DIR: "qt5/deps"
+      SOURCE_DIR: "qt5/source"
+      PREFIX_DIR: "qt5/linux"
+      CCACHE_DIR: "qt5/ccache"
+
+    steps:
+    - name: Load Qt5 Linux Completion Flag
+      id: qt5_linux_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          $FLAGS_DIR/complete
+        key: qt5-linux-flags
+        restore-keys: |
+          qt5-linux-flags-
+
+    - name: Load Qt5 ccache
+      id: qt5_ccache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
+
+    - name: Load Qt5 Cache
+      uses: actions/cache/restore@v4
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt5-linux
+        restore-keys: |
+          qt5-linux-
+
+    - name: Load Qt Shared Dependencies cache
+      id: qt5_shared_deps
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+        restore-keys: |
+          qt-shared-deps-
+
+    - name: Load Qt5 Source cache
+      id: qt5_source
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qt5
+        key: qt5-source
+        restore-keys: |
+          qt5-source-
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      run: |
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Install Qt5 Dependencies
+      id: qt5_install
+      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+
+        sudo apt-get update
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv **/deps/*.deb /${CACHE}/${ARCHIVES}/
+
+        bash $TLD/thunder/build/install-qt-shared-deps.sh
+        bash $TLD/thunder/build/install-qt5-deps.sh
+
+    - name: Build Qt5
+      id: qt5_build
+      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}-qt5
+        export QT5_DIR=$PWD/Qt-${{ env.QT_VERSION }}
+        export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
+        export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
+        export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/build/qtbase/lib:$QT5_DIR/static/lib:$QT5_DIR/static/qtbase/lib
+        export CFLAGS="$CFLAGS $QT5_DIR/static/lib/libQt5Core.a $QT5_DIR/static/lib/libQt5Network.a $QT5_DIR/static/lib/libQt5Gui.a"
+        export CXXFLAGS="$CFLAGS"
+        export LDFLAGS="-lQt5Core"
+
+        ccache -z
+        mkdir -p build
+        cd build
+
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/lib/llvm-${{ env.CLANG_VERSION }}/bin/llvm-config"
+        bash -c "alias ld.lld=/usr/bin/lld-${{ env.CLANG_VERSION }}"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -L$QT5_DIR/static/lib -I$QT5_DIR/static/include -shared ${{ env.QT_CMAKE_FLAGS }}
+        make -j$(nproc)
+        make install
+        cd $TLD
+
+  qt5freebsd:
+    name: Build FreeBSD Qt5
+    runs-on: ubuntu-22.04
+    needs: [qtdepscache, qt5static]
+
+    steps:
+    - name: Load Qt5 ccache
+      id: qt5_ccache
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}-qt5
+        key: qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
+
+    - name: Prepare Qt5 ccache key
+      if: steps.qt5_bsd_ccache.outputs.cache-hit != 'true'
+      run: |
+        mv -v ${{ env.CCACHE_DIR }}-qt5 ${{ env.CCACHE_DIR }}-bsd-qt5
+        echo "Created new Qt5 ccache hash"
+
+    - name: Restore/Create FreeBSD ${{ env.BSD_VERSION }} Qt5 ccache
+      id: qt5_bsd_ccache
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}-bsd-qt5
+        key: qt5-bsd-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qt5-bsd-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
+
+    - name: Restore/Create FreeBSD ${{ env.BSD_VERSION }} Qt5 Build Cache
+      id: qt5_bsd
+      uses: actions/cache@v4
+      with:
+        path: |
+          Qt-${{ env.QT_VERSION }}/bsd
+        key: qt5-bsd
+        restore-keys: |
+          qt5-bsd-
+
+    - name: Load Qt5 Dependencies cache
+      id: qt5_apt
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          apt
+        key: qt-apt
+        restore-keys: |
+          qt-apt-
+
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Apt Sources
+      run: |
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Install Qt5 Dependencies
+      id: qt5_install
+      if: steps.qt5_bsd.outputs.cache-hit != 'true'
+      run: |
+        export CLANG_VERSION=${{ env.CLANG_VERSION }}
+        export QT_MODULES=${{ env.QT_MODULES }}
+        sudo apt-get update
+
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        sudo cp -rfv apt/*.deb /${CACHE}/${ARCHIVES}/
+
+        bash thunder/build/install-qt5-deps.sh
+
+    - name: Checkout Qt5 from git
+      if: steps.qt5_bsd.outputs.cache-hit != 'true'
+      uses: actions/checkout@v4
+      with:
+        github-server-url: 'https://code.qt.io/cgit/'
+        repository: 'qt/qt5.git'
+        path: 'qt5'
+        ref: 'v${{ env.QT_VERSION }}'
+
+    - name: Prepare FreeBSD ${{ env.BSD_VERSION }} Sysroot
+      if: steps.qt5_bsd.outputs.cache-hit != 'true'
+      run: |
+        wget -c https://download.freebsd.org/releases/amd64/amd64/${{ env.BSD_VERSION }}-RELEASE/base.txz
+        mkdir -pv sysroot
+        cd sysroot
+        tar xvf ../base.txz
+        cd ..
+
+    - name: Build Qt5
+      id: qt5_build
+      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        export SYSROOT_DIR=$PWD/sysroot
+        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}-bsd-qt5
+        export PREFIX_DIR=$PWD/Qt-${{ env.QT_VERSION }}/bsd
+        export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
+        export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
+        export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
+        export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+
+        ccache -z
+        mkdir -p build
+        cd build
+
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/lib/llvm-${{ env.CLANG_VERSION }}/bin/llvm-config"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $PREFIX_DIR -c++std ${{ env.CXX_STANDARD_VERSION }} -xplatform freebsd-clang ${{ env.QT_BUILD_FLAGS }} -sysroot $SYSROOT_DIR
+        make -j$(nproc)
+        make install
+        cd $TLD
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-22.04
+    needs: [version, qtdepscache, qt5prepare, qtcreatorcache, qt5linux]
+  
+    steps:
+    - name: Load Qt5 Cache
+      id: qt5_linux
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          Qt-${{ env.QT_VERSION }}/linux
+        key: qt5-linux
+        restore-keys: |
+          qt5-linux-
+
+    - name: Load Qt6 Cache
+      id: qt6_linux
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          Qt-${{ env.QT6_VERSION }}/linux
+        key: qt6-linux
+        restore-keys: |
+          qt6-linux-
+
+    - name: Load Qt5 Dependencies cache
+      id: qt5_apt
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          apt
+        key: qt-apt
+        restore-keys: |
+          qt-apt-
+
+    - name: Load QtCreator Build cache
+      id: qtcreator_linux
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qtcreator/linux
+        key: qtcreator-linux
+        restore-keys: |
+          qtcreator-linux-
+  
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        path: 'thunder'
+
+    - name: Prepare Qt5 Dependencies cache
+      id: qt5_apt_cache
+      run: |
+        eval $(apt-config shell CACHE Dir::Cache)
+        eval $(apt-config shell ARCHIVES Dir::Cache::archives)
+        mkdir -pv apt
+        sudo cp -rfv apt/*.deb /${CACHE}/${ARCHIVES}
+
+    - name: Prepare Apt Sources
+      run: |
+        sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
+        sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
+
+    - name: Prepare Path
+      run: |
+        echo "PATH='$PWD/Qt-${{ env.QT_VERSION}}/linux/bin:$PWD/Qt-${{ env.QT6_VERSION}}/linux/bin:$PWD/qtcreator/bin:$PATH'" >> GITHUB_ENV
+
     - name: Setup Qbs
       run: |
+        cd thunder
         qbs --version
         qbs setup-toolchains --detect
-        qbs setup-qt --detect
-        qbs config defaultProfile
+        qbs setup-qt qmake custom
+        qbs config defaultProfile custom
         qbs config --list
+        cd ..
   
     - name: Build Qbs
       if: needs.version.outputs.release == 'true'
       run: |
-        qbs build -d thirdparty/qbs -f thirdparty/qbs/qbs.qbs --all-products config:release project.withDocumentation:false project.withExamples:false project.withTests:false
-  
+        cd thunder
+        qbs build -d thirdparty/qbs -f thirdparty/qbs/qbs.qbs --all-products config:release project.withDocumentation:false project.withExamples:false project.withTests:false qbs.toolchainType:clang 
+        cd ..
+
     - name: Build Thunder
       run: |
+        cd thunder
         qbs install --all-products config:release
-        7z a -t7z ThunderEngine-linux-x86_64.7z release/install-root/
+        7z a -t7z ../ThunderEngine-linux-x86_64.7z release/install-root/
+        cd ..
         
     - name: Upload Thunder
       uses: actions/upload-artifact@v2
@@ -98,7 +1187,7 @@ jobs:
   android:
     name: Android
     runs-on: ubuntu-20.04
-    needs: version
+    needs: [version]
   
     steps:
     - name: Checkout repository
@@ -113,8 +1202,8 @@ jobs:
   
     - name: Install dependencies
       run: |
-        sudo apt update
-        sudo apt install binutils g++-7 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev
+        sudo apt-get update
+        sudo apt-get install -y binutils g++-7 libgl1-mesa-dev zlib1g-dev libzstd-dev p7zip-full xorg-dev
         
     - name: Install Qt
       run: |
@@ -143,9 +1232,10 @@ jobs:
         name: ThunderEngine-android.7z
         path: ThunderEngine-android.7z
 
+# macos-latest is currently broken for the build system. This single comment should show the issue in effect.
   ios:
     name: iOS
-    runs-on: macos-latest
+    runs-on: macos-13
     needs: version
 
     env:
@@ -180,7 +1270,7 @@ jobs:
     
   tvos:
     name: tvOS
-    runs-on: macos-latest
+    runs-on: macos-13
     needs: version
 
     env:
@@ -216,7 +1306,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-latest
-    needs: version
+    needs: [version]
     
     defaults:
       run:
@@ -265,8 +1355,8 @@ jobs:
     
   freebsd:
     name: FreeBSD
-    runs-on: ubuntu-latest
-    needs: version
+    runs-on: ubuntu-22.04
+    needs: [version, qtdepscache, qt5prepare, qtcreatorcache, qt5freebsd]
 
     steps:
     - name: Checkout repository
@@ -344,7 +1434,7 @@ jobs:
 
   github:
     name: Upload to GitHub releases
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     needs: [version, linux, windows, android, ios, tvos, freebsd]
 
     if: github.repository == 'thunder-engine/thunder' && needs.version.outputs.release == 'true'
