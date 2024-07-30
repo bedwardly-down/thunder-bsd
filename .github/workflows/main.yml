@@ -19,7 +19,7 @@ env:
   QT_VERSION: 5.15.2
   QT6_VERSION: 6.7.2
   QT_BUILD_FLAGS: "-optimized-qmake -opensource -nomake tests -nomake tools -nomake examples -confirm-license -ccache -linker lld -silent -release -optimize-size"
-  QT_CMAKE_FLAGS: ""
+  QT_CMAKE_FLAGS: "-- -D__GLIBCXX_USE_CXX11_ABI=0"
   QT_MODULES: "qtbase,qtmultimedia,qtsvg,qtimageformats,qttools,qtxmlpatterns,qtdeclarative,qtquick3d,qtrepotools"
   QTCREATOR_VERSION: 11.0.3
 
