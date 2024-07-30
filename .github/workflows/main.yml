@@ -665,9 +665,9 @@ jobs:
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
         export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
         export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
-        export CFLAGS="$CFLAGS `llvm-config --cflags`"
-        export CXXFLAGS="$CXXFLAGS `llvm-config --cxxflags`"
-        export LDFLAGS="$LDFLAGS -lc++abi `llvm-config --ldflags --link-static`"
+        export CFLAGS="$CFLAGS $(llvm-config --cflags)"
+        export CXXFLAGS="$CXXFLAGS $(llvm-config --cxxflags)"
+        export LDFLAGS="$LDFLAGS -lc++abi $(llvm-config --ldflags --link-static)"
 
         ccache -z
         mkdir -p build
