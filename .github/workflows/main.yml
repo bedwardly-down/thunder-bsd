@@ -667,6 +667,7 @@ jobs:
         export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
         export CFLAGS="$CFLAGS $(llvm-config --cflags)"
         export CXXFLAGS="$CXXFLAGS $(llvm-config --cxxflags)"
+        export CPPFLAGS="$CPPFLAGS $(llvm-config --cppflags)"
         export LDFLAGS="$LDFLAGS -lc++abi $(llvm-config --ldflags --link-static)"
 
         ccache -z
