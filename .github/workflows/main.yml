@@ -19,7 +19,7 @@ env:
   QT_VERSION: 5.15.2
   QT6_VERSION: 6.7.2
   QT_BUILD_FLAGS: "-optimized-qmake -opensource -nomake tests -nomake tools -nomake examples -confirm-license -ccache -linker lld -silent -release -optimize-size"
-  QT_CMAKE_FLAGS: "-- -D__GLIBCXX_USE_CXX11_ABI=0"
+  QT_CMAKE_FLAGS: ""
   QT_MODULES: "qtbase,qtmultimedia,qtsvg,qtimageformats,qttools,qtxmlpatterns,qtdeclarative,qtquick3d,qtrepotools"
   QTCREATOR_VERSION: 11.0.3
 
@@ -678,7 +678,7 @@ jobs:
         bash -c "alias ld.lld=$LLVM_INSTALL_DIR/bin/ld.lld-${{ env.CLANG_VERSION }}"
         sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
         sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }} -- -D_GLIBCXX_USE_CXX11_ABI=0
         cmake --build . --parallel $(nproc)
         cmake --install .
         cd $TLD
