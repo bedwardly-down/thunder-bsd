@@ -668,7 +668,7 @@ jobs:
         export CFLAGS="$CFLAGS $(llvm-config --cflags)"
         export CXXFLAGS="$CXXFLAGS $(llvm-config --cxxflags)"
         export CPPFLAGS="$CPPFLAGS $(llvm-config --cppflags)"
-        export LDFLAGS="$LDFLAGS -lc++abi $(llvm-config --ldflags --link-static)"
+        export LDFLAGS="$LDFLAGS $(llvm-config --ldflags --link-static) -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
 
         ccache -z
         mkdir -p build
@@ -681,7 +681,7 @@ jobs:
         bash -c "alias ld.lld=$LLVM_INSTALL_DIR/bin/ld.lld-${{ env.CLANG_VERSION }}"
         sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
         sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }} -- -D_GLIBCXX_USE_CXX11_ABI=0
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
         cmake --build . --parallel $(nproc)
         cmake --install .
         cd $TLD
