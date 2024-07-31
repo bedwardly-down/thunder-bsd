@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Install Clang and LLVM
-sudo apt-get install -y clang-$CLANG_VERSION clang-tools-$CLANG_VERSION llvm-$CLANG_VERSION llvm-$CLANG_VERSION-runtime libclang-rt-$CLANG_VERSION-dev libclang1-$CLANG_VERSION lld-$CLANG_VERSION libc++-$CLANG_VERSION-dev libc++abi-$CLANG_VERSION-dev libunwind-$CLANG_VERSION-dev libclang-common-$CLANG_VERSION-dev libclang-$CLANG_VERSION-dev libclang1-$CLANG_VERSION clang-format-$CLANG_VERSION python3-clang-$CLANG_VERSION clangd-$CLANG_VERSION clang-tidy-$CLANG_VERSION
+sudo apt-get install -y clang-$CLANG_VERSION clang-tools-$CLANG_VERSION lobclag-$CLANG_VERSION llvm-$CLANG_VERSION llvm-$CLANG_VERSION-runtime libclang-rt-$CLANG_VERSION-dev libclang1-$CLANG_VERSION lld-$CLANG_VERSION libc++-$CLANG_VERSION-dev libc++abi-$CLANG_VERSION-dev libunwind-$CLANG_VERSION-dev libclang-common-$CLANG_VERSION-dev libclang-$CLANG_VERSION-dev libclang1-$CLANG_VERSION clang-format-$CLANG_VERSION python3-clang-$CLANG_VERSION clangd-$CLANG_VERSION clang-tidy-$CLANG_VERSION
 
 # Install General Build Tools
 sudo apt-get install -y build-essential ccache cmake ninja-build git python3 perl libedit-dev g++-12 libstdc++-12-dev libstdc++-11-dev
