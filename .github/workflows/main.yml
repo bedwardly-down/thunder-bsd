@@ -678,7 +678,7 @@ jobs:
         export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
         export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
 
-        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}-qt6
+        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
