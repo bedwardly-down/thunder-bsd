@@ -11,7 +11,7 @@ diff --git a/src/linguist/lupdate/clangtoolastreader.h b/src/linguist/lupdate/cl
 index 88e25facd..122f83150 100644
 --- a/src/linguist/lupdate/clangtoolastreader.h
 +++ b/src/linguist/lupdate/clangtoolastreader.h
-@@ -309,6 +309,12 @@ #endif
+@@ -136,6 +136,12 @@ #endif
 
  private:
      Stores *m_stores = nullptr;
