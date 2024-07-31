@@ -1,0 +1,29 @@
+From 2388f48bf885242a7563fe7a6ebb958e93a40b21 Mon Sep 17 00:00:00 2001
+From: Brad D <social@brandongrows.me>
+Date: Wed, 31 Jul 2024 05:52:01 -0500
+Subject: [PATCH] Patch: Qttools Header Fix
+
+---
+ src/linguist/lupdate/cpp_clang.h | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/linguist/lupdate/cpp_clang.h b/src/linguist/lupdate/cpp_clang.h
+index 88e25facd..122f83150 100644
+--- a/src/linguist/lupdate/cpp_clang.h
++++ b/src/linguist/lupdate/cpp_clang.h
+@@ -309,6 +309,12 @@ namespace ClangCppParser
+     bool hasAliases();
+     std::vector<std::string> getAliasFunctionDefinition();
+ 
++    clang::DeclarationName declarationName;
++    clang::SourceLocation sourceLocation;
++    clang::NamedDecl namedDecl;
++    clang::DeclarationNameInfo declarationNameInfo;
++    clang::SourceRange sourceRange;
++    clang::SourceManager sourceManager;
+ }
+ 
+ QT_END_NAMESPACE
+-- 
+2.45.2
+
