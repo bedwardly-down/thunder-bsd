@@ -18,7 +18,7 @@ index 88e25facd..122f83150 100644
  };
  
  QT_END_NAMESPACE
-
+ 
 +    clang::DeclarationName declarationName;
 +    clang::SourceLocation sourceLocation;
 +    clang::NamedDecl namedDecl;
