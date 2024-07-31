@@ -1,0 +1,24 @@
+From a3c232c0c6a98d1f9442e90ee2248e920fc94389 Mon Sep 17 00:00:00 2001
+From: Brad D <social@brandongrows.me>
+Date: Thu, 8 Aug 2024 21:38:56 -0500
+Subject: [PATCH 10/10] Patch: QtBase qglobal.h <limits> fix
+
+---
+ src/corelib/global/qglobal.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/corelib/global/qglobal.h b/src/corelib/global/qglobal.h
+index 501c542157..dc773e20ab 100644
+--- a/src/corelib/global/qglobal.h
++++ b/src/corelib/global/qglobal.h
+@@ -45,6 +45,7 @@
+ #  include <type_traits>
+ #  include <cstddef>
+ #  include <utility>
++#  include <limits>
+ #endif
+ #ifndef __ASSEMBLER__
+ #  include <assert.h>
+-- 
+2.46.0
+

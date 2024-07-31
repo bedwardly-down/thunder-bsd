@@ -493,6 +493,17 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
 
+    - name: Apply Qt5 Clang 17 Patches
+      id: qt5_patch
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
+        cd ${{ env.SOURCE_DIR }}/qtbase
+        patch -p1 -i $TLD/thunder/patches/QtBase-qglobal.h-limits-fix.patch
+        cd $TLD
+
     - name: Build Qt5
       id: qt5_build
       if: steps.qt5_static_completion.outputs.cache-hit != 'true'
@@ -505,7 +516,12 @@ jobs:
         sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
         sudo ln -sv $LLVM_INSTALL_DIR /usr/lib/llvm-14
 
-        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}
+        export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
+        export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
+        export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
+        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
+
+        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
@@ -515,7 +531,7 @@ jobs:
         mkdir -p build
         cd build
 
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
         make -j$(nproc)
         make install
         cd $TLD
@@ -658,7 +674,7 @@ jobs:
         sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
 
         cd ${{ env.SOURCE_DIR }}/qttools
-        patch -p1 -i $TLD/thunder/patches/Qttools-Header-Fix.patch
+        # patch -p1 -i $TLD/thunder/patches/Qttools-Header-Fix.patch
         cd $TLD
 
     - name: Build Qt6
@@ -688,7 +704,7 @@ jobs:
         mkdir -p build
         cd build
 
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
         cmake --build . --parallel $(nproc)
         cmake --install .
         cd $TLD
@@ -830,18 +846,27 @@ jobs:
       if: steps.qtcreator_static.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
-        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv $LLVM_INSTALL_DIR /usr/lib/llvm-14
+
+        export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
+        export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
+        export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
+        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
+
+        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
         export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
-        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
 
-        export CC=clang-${{ env.CLANG_VERSION }}
-        export CXX=clang++-${{ env.CLANG_VERSION }}
-
-        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
-        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        ccache -z
+        mkdir -p build
+        cd build
 
         ccache -z
         cmake -G Ninja ${{ env.CCACHE_CFLAGS }} -S qtcreator -B build -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX=$TLD/${{ env.PREFIX_DIR }} -DCMAKE_SHARED_LIBS=OFF
@@ -946,28 +971,29 @@ jobs:
       if: steps.qt5_linux.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
-        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}-qt5
-        export QT5_DIR=$PWD/Qt-${{ env.QT_VERSION }}
+        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
+        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
+        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        sudo ln -sv $LLVM_INSTALL_DIR /usr/lib/llvm-14
+
+        export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
+        export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
+        export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
+        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
+
+        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
-        export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
-        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/build/qtbase/lib:$QT5_DIR/static/lib:$QT5_DIR/static/qtbase/lib
-        export CFLAGS="$CFLAGS $QT5_DIR/static/lib/libQt5Core.a $QT5_DIR/static/lib/libQt5Network.a $QT5_DIR/static/lib/libQt5Gui.a"
-        export CXXFLAGS="$CFLAGS"
-        export LDFLAGS="-lQt5Core"
+        export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
 
         ccache -z
         mkdir -p build
         cd build
 
-        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
-        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
-        bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
-        bash -c "alias ld.lld=/usr/bin/lld-${{ env.CLANG_VERSION }}"
-        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
-        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang-libc++ ${{ env.QT_BUILD_FLAGS }} -L$QT5_DIR/static/lib -I$QT5_DIR/static/include -shared ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -L$QT5_DIR/static/lib -I$QT5_DIR/static/include -shared ${{ env.QT_CMAKE_FLAGS }}
         make -j$(nproc)
         make install
         cd $TLD
@@ -1106,7 +1132,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: |
-          Qt-${{ env.QT_VERSION }}/linux
+          qt5/linux
         key: qt5-linux
         restore-keys: |
           qt5-linux-
