@@ -19,7 +19,6 @@ env:
   QT_VERSION: 5.15.2
   QT6_VERSION: 6.7.2
   QT_BUILD_FLAGS: "-optimized-qmake -opensource -nomake tests -nomake tools -nomake examples -confirm-license -ccache -linker lld -silent -release -optimize-size"
-  QT_CMAKE_FLAGS: ""
   QT_MODULES: "qtbase,qtmultimedia,qtsvg,qtimageformats,qttools,qtxmlpatterns,qtdeclarative,qtquick3d,qtrepotools"
   QTCREATOR_VERSION: 11.0.3
 
@@ -205,6 +204,18 @@ jobs:
         mkdir -pv ${{ env.FLAGS_DIR }}/complete
         touch ${{ env.FLAGS_DIR }}/complete/flag
 
+    - name: Apply Qt5 Clang 17 Patches
+      id: qt5_patch
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
+        cd ${{ env.SOURCE_DIR }}/qtbase
+        patch -p1 -i $TLD/thunder/patches/QtBase-qglobal.h-limits-fix.patch
+        patch -p1 -i $TLD/thunder/patches/QtBase-qt_version_tagging-fix.patch
+        cd $TLD
+
     - name: Cache Qt5 Source
       id: qt5_source
       if: steps.qt5_source_completion.outputs.cache-hit != 'true'
@@ -290,6 +301,13 @@ jobs:
 
         mkdir -pv ${{ env.FLAGS_DIR }}/complete
         touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    - name: Apply Qt6 Clang 17 Patches
+      id: qt6_patch
+      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
 
     - name: Cache Qt6 Source
       id: qt6_source
@@ -427,7 +445,7 @@ jobs:
 
     - name: Load Qt5 Source cache
       id: qt5_source
-      if: steps.qt5_static_completion.outputs.ccache-hit != 'true'
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: |
@@ -492,17 +510,6 @@ jobs:
 
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
-
-    - name: Apply Qt5 Clang 17 Patches
-      id: qt5_patch
-      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
-      run: |
-        export TLD=$PWD
-        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
-
-        cd ${{ env.SOURCE_DIR }}/qtbase
-        patch -p1 -i $TLD/thunder/patches/QtBase-qglobal.h-limits-fix.patch
-        cd $TLD
 
     - name: Build Qt5
       id: qt5_build
@@ -621,7 +628,7 @@ jobs:
         
     - name: Load Qt6 Source cache
       id: qt6_source
-      if: steps.qt6_static_completion.outputs.ccache-hit != 'true'
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: |
@@ -666,17 +673,6 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt6-deps.sh
  
-    - name: Apply Qt6 Clang 17 Patches
-      id: qt6_patch
-      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
-      run: |
-        export TLD=$PWD
-        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
-
-        cd ${{ env.SOURCE_DIR }}/qttools
-        # patch -p1 -i $TLD/thunder/patches/Qttools-Header-Fix.patch
-        cd $TLD
-
     - name: Build Qt6
       id: qt6_build
       if: steps.qt6_static_completion.outputs.cache-hit != 'true'
@@ -731,7 +727,7 @@ jobs:
         key: qt6-static-flags
 
     - name: Cache Qt6 ccache
-      if: steps.qt6_static_completion.outputs.cache-hit != 'true' && always()
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
       with:
         path: |
@@ -875,7 +871,7 @@ jobs:
         echo "$(ccache -s | grep -a2 Hits)" > $CCACHE_DIR/ccache-hits.txt
 
   qt5linux:
-    name: Compile Linux Qt5 Dynamic Build
+    name: Compile Qt5 Linux Dynamic Build
     runs-on: ubuntu-22.04
     needs: [qtdepscache, qt5static]
 
@@ -941,6 +937,7 @@ jobs:
           qt5-source-
 
     - name: Checkout repository
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
       uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -953,7 +950,7 @@ jobs:
 
     - name: Install Qt5 Dependencies
       id: qt5_install
-      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
         export CLANG_VERSION=${{ env.CLANG_VERSION }}
@@ -961,14 +958,15 @@ jobs:
         sudo apt-get update
         eval $(apt-config shell CACHE Dir::Cache)
         eval $(apt-config shell ARCHIVES Dir::Cache::archives)
-        sudo cp -rfv **/deps/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.QT5_DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
 
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
 
     - name: Build Qt5
       id: qt5_build
-      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
         export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
@@ -981,7 +979,7 @@ jobs:
         export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
         export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
         export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
-        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend"
+        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend -Wl,--undefined-version"
 
         export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
@@ -998,57 +996,105 @@ jobs:
         make install
         cd $TLD
 
+    - name: Cache Qt5 Dynamic Build
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt5-linux
+
+    - name: Cache Qt5 Dynamic Build Completion Flag
+      if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-linux-flags
+
   qt5freebsd:
-    name: Build FreeBSD Qt5
+    name: Compile Qt5 FreeBSD Dynamic Build
     runs-on: ubuntu-22.04
     needs: [qtdepscache, qt5static]
 
+    env:
+      FLAGS_DIR: "flags/qt5/freebsd"
+      DEPS_DIR: "shared/deps"
+      QT5_DEPS_DIR: "qt5/deps"
+      SOURCE_DIR: "qt5/source"
+      PREFIX_DIR: "qt5/freebsd"
+      CCACHE_DIR: "qt5/ccache"
+
     steps:
-    - name: Load Qt5 ccache
-      id: qt5_ccache
+    - name: Load Qt5 FreeBSD Completion Flag
+      id: qt5_freebsd_completion
       uses: actions/cache/restore@v4
       with:
         path: |
-          ${{ env.CCACHE_DIR }}-qt5
+          $FLAGS_DIR/complete
+        key: qt5-freebsd-flags
+        restore-keys: |
+          qt5-freebsd-flags-
+
+    - name: Create FreeBSD Sysroot
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: vmactions/freebsd-vm@v1.0.8
+      with:
+        usesh: true
+        sync: rsync
+        run: |
+          fetch https://download.freebsd.org/releases/amd64/amd64/${{ env.BSD_VERSION }}-RELEASE/base.txz
+          mkdir -pv sysroot
+          cd sysroot
+          tar xvf ../base.txz
+          sudo chown -Rv 0:0 .
+          pkg install -y llvm${{ env.CLANG_VERSION }} gcc13
+          cp -rfv /usr/local usr
+          cd ..
+          mv -v base.txz /tmp
+
+    - name: Load Qt5 ccache
+      id: qt5_ccache
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
         key: qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}
         restore-keys: |
           qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
 
-    - name: Prepare Qt5 ccache key
-      if: steps.qt5_bsd_ccache.outputs.cache-hit != 'true'
-      run: |
-        mv -v ${{ env.CCACHE_DIR }}-qt5 ${{ env.CCACHE_DIR }}-bsd-qt5
-        echo "Created new Qt5 ccache hash"
-
-    - name: Restore/Create FreeBSD ${{ env.BSD_VERSION }} Qt5 ccache
-      id: qt5_bsd_ccache
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ env.CCACHE_DIR }}-bsd-qt5
-        key: qt5-bsd-ccache-${{ hashFiles('**/ccache-hits.txt') }}
-        restore-keys: |
-          qt5-bsd-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
-
-    - name: Restore/Create FreeBSD ${{ env.BSD_VERSION }} Qt5 Build Cache
-      id: qt5_bsd
-      uses: actions/cache@v4
-      with:
-        path: |
-          Qt-${{ env.QT_VERSION }}/bsd
-        key: qt5-bsd
-        restore-keys: |
-          qt5-bsd-
-
-    - name: Load Qt5 Dependencies cache
-      id: qt5_apt
+    - name: Load Qt5 Cache
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: |
-          apt
-        key: qt-apt
+          ${{ env.PREFIX_DIR }}
+        key: qt5-freebsd
         restore-keys: |
-          qt-apt-
+          qt5-freebsd-
+
+    - name: Load Qt Shared Dependencies cache
+      id: qt5_shared_deps
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.DEPS_DIR }}
+        key: qt-shared-deps
+        restore-keys: |
+          qt-shared-deps-
+
+    - name: Load Qt5 Source cache
+      id: qt5_source
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qt5
+        key: qt5-source
+        restore-keys: |
+          qt5-source-
 
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -1063,63 +1109,70 @@ jobs:
 
     - name: Install Qt5 Dependencies
       id: qt5_install
-      if: steps.qt5_bsd.outputs.cache-hit != 'true'
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
       run: |
+        export TLD=$PWD
         export CLANG_VERSION=${{ env.CLANG_VERSION }}
-        export QT_MODULES=${{ env.QT_MODULES }}
-        sudo apt-get update
 
+        sudo apt-get update
         eval $(apt-config shell CACHE Dir::Cache)
         eval $(apt-config shell ARCHIVES Dir::Cache::archives)
-        sudo cp -rfv apt/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
+        sudo cp -rfv ${{ env.QT5_DEPS_DIR }}/*.deb /${CACHE}/${ARCHIVES}/
 
-        bash thunder/build/install-qt5-deps.sh
-
-    - name: Checkout Qt5 from git
-      if: steps.qt5_bsd.outputs.cache-hit != 'true'
-      uses: actions/checkout@v4
-      with:
-        github-server-url: 'https://code.qt.io/cgit/'
-        repository: 'qt/qt5.git'
-        path: 'qt5'
-        ref: 'v${{ env.QT_VERSION }}'
-
-    - name: Prepare FreeBSD ${{ env.BSD_VERSION }} Sysroot
-      if: steps.qt5_bsd.outputs.cache-hit != 'true'
-      run: |
-        wget -c https://download.freebsd.org/releases/amd64/amd64/${{ env.BSD_VERSION }}-RELEASE/base.txz
-        mkdir -pv sysroot
-        cd sysroot
-        tar xvf ../base.txz
-        cd ..
+        bash $TLD/thunder/build/install-qt-shared-deps.sh
+        bash $TLD/thunder/build/install-qt5-deps.sh
 
     - name: Build Qt5
       id: qt5_build
-      if: steps.qt5_linux.outputs.cache-hit != 'true'
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
-        export SYSROOT_DIR=$PWD/sysroot
-        export CCACHE_DIR=$PWD/${{ env.CCACHE_DIR }}-bsd-qt5
-        export PREFIX_DIR=$PWD/Qt-${{ env.QT_VERSION }}/bsd
+        export SYSROOT_DIR=$TLD/sysroot
+        export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
+        export PREFIX_DIR=$TLD/qt5/freebsd
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
         export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
         export LLVM_INSTALL_DIR=/usr/lib/llvm-${{ env.CLANG_VERSION }}
 
+        export CC="clang${{ env.CLANG_VERSION }}"
+        export CXX="clang++${{ env.CLANG_VERSION }}"
+        export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
+        export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
+        export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
+        export LDFLAGS="$LDFLAGS `llvm-config-${{ env.CLANG_VERSION }} --ldflags --link-static` -lc++abi -lclangTooling -lclangAST -lclangBasic -lclangToolingSyntax -lclangDriver -lclangFrontend -lclangSerialization -lclangStaticAnalyzerFrontend -Wl,--undefined-version"
+
         ccache -z
         mkdir -p build
         cd build
 
-        bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
-        bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
-        bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
-        sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
-        sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
+        #bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
+        #bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
+        #bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
+        #sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
+        #sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
         $TLD/${{ env.SOURCE_DIR }}/configure -prefix $PREFIX_DIR -c++std ${{ env.CXX_STANDARD_VERSION }} -xplatform freebsd-clang ${{ env.QT_BUILD_FLAGS }} -sysroot $SYSROOT_DIR
         make -j$(nproc)
         make install
         cd $TLD
+
+    - name: Cache Qt5 Dynamic Build
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qt5-freebsd
+
+    - name: Cache Qt5 Dynamic Build Completion Flag
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qt5-freebsd-flags
 
   linux:
     name: Linux

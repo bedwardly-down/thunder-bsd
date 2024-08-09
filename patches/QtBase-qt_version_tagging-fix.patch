@@ -1,0 +1,23 @@
+From 256321acda26f15b01bfd740b14fcc181b74d6bd Mon Sep 17 00:00:00 2001
+From: Brad D <social@brandongrows.me>
+Date: Fri, 9 Aug 2024 00:16:50 -0500
+Subject: [PATCH 12/12] QtBase qt_version_tagging fix
+
+---
+ mkspecs/linux-clang/qmake.conf | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mkspecs/linux-clang/qmake.conf b/mkspecs/linux-clang/qmake.conf
+index 77d913f8a5..06ef1dfa82 100644
+--- a/mkspecs/linux-clang/qmake.conf
++++ b/mkspecs/linux-clang/qmake.conf
+@@ -12,5 +12,6 @@ include(../common/gcc-base-unix.conf)
+ include(../common/clang.conf)
+ 
+ QMAKE_LFLAGS += -ccc-gcc-name g++
++QMAKE_LFLAGS_NOUNDEF += -Wl,--no-undefined
+ 
+ load(qt_config)
+-- 
+2.46.0
+
