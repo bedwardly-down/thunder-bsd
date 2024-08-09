@@ -209,7 +209,6 @@ jobs:
       if: steps.qt5_source_completion.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
-        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
 
         cd ${{ env.SOURCE_DIR }}/qtbase
         patch -p1 -i $TLD/thunder/patches/QtBase-qglobal.h-limits-fix.patch
@@ -302,13 +301,6 @@ jobs:
         mkdir -pv ${{ env.FLAGS_DIR }}/complete
         touch ${{ env.FLAGS_DIR }}/complete/flag
 
-    - name: Apply Qt6 Clang 17 Patches
-      id: qt6_patch
-      if: steps.qt6_source_completion.outputs.cache-hit != 'true'
-      run: |
-        export TLD=$PWD
-        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
-
     - name: Cache Qt6 Source
       id: qt6_source
       if: steps.qt6_source_completion.outputs.cache-hit != 'true'
@@ -369,8 +361,8 @@ jobs:
         export TLD=$PWD
 
         sudo apt-get update
-        mkdir -pv ${{ env.QTCREATOR_DEPS_DIR }} ${{ env.SOURCE_DIR }}
-        cd ${{ env.QTCREATOR_DEPS_DIR }}
+        mkdir -pv $TLD/${{ env.QTCREATOR_DEPS_DIR }} $TLD/${{ env.SOURCE_DIR }}
+        cd $TLD/${{ env.QTCREATOR_DEPS_DIR }}
         bash $TLD/thunder/build/download-qtcreator-deps.sh
         cd $TLD
 
@@ -391,7 +383,7 @@ jobs:
         mkdir -pv ${{ env.FLAGS_DIR }}/complete
         touch ${{ env.FLAGS_DIR }}/complete/flag
 
-    - name: Create QtCreator Source cache
+    - name: Cache QtCreator Source
       id: qtcreator_source
       if: steps.qtcreator_source_completion.outputs.cache-hit != 'true'
       uses: actions/cache/save@v4
@@ -407,6 +399,93 @@ jobs:
         path: |
           ${{ env.FLAGS_DIR }}/complete
         key: qtcreator-source-flags
+
+  freebsdsysrootprepare:
+    name: Prepare FreeBSD Sysroot
+    runs-on: ubuntu-22.04
+    needs: version
+
+    env:
+      FLAGS_DIR: "flags/freebsd/sysroot"
+      SYSROOT_DIR: "sysroot/freebsd"
+
+    steps:
+    - name: Load FreeBSD Sysroot Completion Flag
+      id: freebsd_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: freebsd-sysroot-flags
+        restore-keys: |
+          freebsd-sysroot-flags-
+
+    # Uses https://github.com/ClickHouse/sysroot/tree/master/freebsd-x86_64 as a guide for minimal sysroot
+    - name: Create FreeBSD Sysroot
+      if: steps.freebsd_completion.outputs.cache-hit != 'true'
+      uses: vmactions/freebsd-vm@v1.0.8
+      with:
+        usesh: true
+        sync: rsync
+        release: ${{ env.BSD_VERSION }}
+        run: |
+          export TLD=$PWD
+
+          fetch https://download.freebsd.org/releases/amd64/amd64/${{ env.BSD_VERSION }}-RELEASE/base.txz
+          mkdir -pv ${{ env.SYSROOT_DIR }}
+          cd ${{ env.SYSROOT_DIR }}
+          tar xvf $TLD/base.txz
+          sudo chown -Rv 0:0 .
+          pkg install -y llvm${{ env.CLANG_VERSION }} gcc13 zip
+          cp -rfv /usr/local usr
+          rm -rf etc libexec boot bin var usr/bin usr/obj usr/sbin usr/share usr/src usr/libdata usr/libexec usr/tests restore 
+          rm -rf lib/libca* lib/libcr* lib/libct* lib/libmd* lib/libml* lib/mt*
+          mv -v lib/libc* tmp
+          mv -v lib/libgcc* tmp
+          mv -v lib/libm* tmp
+          mv -v lib/lib*rt* tmp
+          mv -v lib/libthr* tmp
+          mv -v lib /tmp
+          mkdir -pv lib
+          mv -v tmp/* lib
+          mv -v usr/lib/*.o lib
+          mv -v usr/lib/libpthread.so lib
+          mv -v usr/lib /tmp
+          ln -sv lib usr/lib
+          mv -v usr/local/share /tmp
+          mv -v usr/local/sbin /tmp 
+          mv -v usr/local/lib32 /tmp
+          mv -v usr/local/libdata /tmp
+          cd $TLD
+          rm -rfv base.txz
+          tar czf freebsd.tar.gz ${{ env.SYSROOT_DIR }}
+          mv -v sysroot /tmp
+
+          mkdir -pv ${{ env.FLAGS_DIR }}/complete
+          touch ${{ env.FLAGS_DIR }}/complete/flag
+
+    # FreeBSD Vm Rsync hack; it doesn't copy over all files unless I compress and then decompress here
+    - name: Prepare FreeBSD Sysroot Cache
+      if: steps.freebsd_completion.outputs.cache-hit != 'true'
+      run: |
+        tar xvzf freebsd.tar.gz
+        rm -rfv freebsd.tar.gz
+      
+    - name: Cache FreeBSD Sysroot Completion Flag
+      if: steps.freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: freebsd-sysroot-flags
+
+    - name: Cache FreeBSD Sysroot
+      if: steps.freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.SYSROOT_DIR }}
+        key: freebsd-sysroot
 
   qt5static:
     name: Compile Qt5 Static Build
@@ -511,6 +590,13 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
 
+    - name: Fix libunwind Clang 17 Build Issue
+      id: qt5_patch
+      if: steps.qt5_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
     - name: Build Qt5
       id: qt5_build
       if: steps.qt5_static_completion.outputs.cache-hit != 'true'
@@ -538,7 +624,7 @@ jobs:
         mkdir -p build
         cd build
 
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static
         make -j$(nproc)
         make install
         cd $TLD
@@ -605,7 +691,7 @@ jobs:
           qt6-static-flags-
 
     - name: Load Qt6 Static ccache Flag
-      id: qt6_static_ccache
+      id: qt6_static_ccache_flags
       if: steps.qt6_static_completion.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
@@ -643,6 +729,17 @@ jobs:
         mkdir -p ${{ env.CCACHE_DIR }}
         touch ${{ env.CCACHE_DIR }}/ccache-hits.txt
         echo "Created new Qt6 ccache hash"
+
+    - name: Load Qt6 ccache
+      id: qt6_static_ccache
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: | 
+          ${{ env.CCACHE_DIR }}
+        key: qt6-ccache-${{ hashFiles('**/ccache-hits.txt') }}
+        restore-keys: |
+          qt6-ccache-${{ hashFiles('**/ccache-hits.txt') }}
           
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -673,6 +770,13 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt6-deps.sh
  
+    - name: Fix libunwind Clang 17 Build Issue
+      id: qt6_patch
+      if: steps.qt6_static_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
     - name: Build Qt6
       id: qt6_build
       if: steps.qt6_static_completion.outputs.cache-hit != 'true'
@@ -700,7 +804,7 @@ jobs:
         mkdir -p build
         cd build
 
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $TLD/${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -static 
         cmake --build . --parallel $(nproc)
         cmake --install .
         cd $TLD
@@ -751,14 +855,43 @@ jobs:
       FLAGS_DIR: "flags/qtcreator/static"
       DEPS_DIR: "shared/deps"
       QTCREATOR_DEPS_DIR: "qtcreator/deps"
+      QT6_STATIC_DIR: "qt6/static"
       SOURCE_DIR: "qtcreator/source"
       PREFIX_DIR: "qtcreator/static"
       CCACHE_DIR: "qtcreator/ccache"
 
     steps:
-    - name: Restore/Create QtCreator ccache
-      id: qtcreator_ccache
-      uses: actions/cache@v4
+    - name: Load QtCreator Completion Flags
+      id: qtcreator_static_completion
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}
+        key: qtcreator-static-flags
+        restore-keys: |
+          qtcreator-static-flags-
+
+    - name: Load QtCreator Source cache
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          qtcreator
+        key: qtcreator-source
+        restore-keys: |
+          qtcreator-source-
+
+    - name: Prepare QtCreator ccache key
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true' && steps.qtcreator_static_ccache.outputs.cache-hit != 'true'
+      run: |
+        mkdir -p ${{ env.CCACHE_DIR }}
+        touch ${{ env.CCACHE_DIR }}/ccache-hits.txt
+        echo "Created new QtCreator ccache hash"
+
+    - name: Load QtCreator ccache
+      id: qtcreator_static_ccache
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
       with:
         path: |
           ${{ env.CCACHE_DIR }}
@@ -766,28 +899,20 @@ jobs:
         restore-keys: |
           qtcreator-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
 
-    - name: Restore/Create Qt6 Build cache
+    - name: Load Qt6 Build cache
       id: qt6_static
-      uses: actions/cache@v4
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
       with:
         path: |
-          ${{ env.PREFIX_DIR }}
+          ${{ env.QT6_STATIC_DIR }}
         key: qt6-static
         restore-keys: |
           qt6-static-
 
-    - name: Restore/Create QtCreator Build cache
-      id: qtcreator_static
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ env.PREFIX_DIR }}
-        key: qtcreator-static
-        restore-keys: |
-          qtcreator-static-
-  
     - name: Load Qt Shared Dependencies cache
       id: qt_shared_deps
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: |
@@ -797,19 +922,21 @@ jobs:
           qt-shared-deps-
         
     - name: Checkout repository
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
       uses: actions/checkout@v4
       with:
         submodules: recursive
         path: 'thunder'
 
     - name: Prepare Apt Sources
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
       run: |
         sudo cp -rfv ${{ env.DEPS_DIR }}/sources* /etc/apt
         sudo cp -rfv ${{ env.DEPS_DIR }}/trusted* /etc/apt
 
-    - name: Install Qt6 Dependencies
-      id: qt5_install
-      if: steps.qtcreator_static.outputs.cache-hit != 'true'
+    - name: Install QtCreator Dependencies
+      id: qtcreator_install
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
       run: |
         export CLANG_VERSION=${{ env.CLANG_VERSION }}
         sudo apt-get update
@@ -822,22 +949,13 @@ jobs:
         bash thunder/build/install-qt-shared-deps.sh
         bash thunder/build/install-qtcreator-deps.sh
 
-    - name: Install QtCreator Dependencies
-      if: steps.qtcreator_static.outputs.cache-hit != 'true'
+    - name: Fix libunwind Clang 17 Build Issue
+      id: qtcreator_patch
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
       run: |
-        export CLANG_VERSION=${{ env.CLANG_VERSION }}
-        bash thunder/build/install-qtcreator-deps.sh
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
 
-    - name: Checkout QtCreator Sources
-      uses: actions/checkout@v4
-      if: steps.qtcreator_ccache.outputs.cache-hit != 'true'
-      with:
-        github-server-url: 'https://code.qt.io/cgit/'
-        repository: 'qt-creator/qt-creator.git'
-        path: 'qtcreator'
-        ref: '${{ env.QTCREATOR_VERSION }}'
-        submodules: recursive
-       
     - name: Build QtCreator
       if: steps.qtcreator_static.outputs.cache-hit != 'true'
       run: |
@@ -849,6 +967,8 @@ jobs:
         sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
         sudo ln -sv $LLVM_INSTALL_DIR /usr/lib/llvm-14
 
+        export CC="clang-${{ env.CLANG_VERSION }}"
+        export CXX="clang++-${{ env.CLANG_VERSION }}"
         export CFLAGS="$CFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cflags`"
         export CXXFLAGS="$CXXFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cxxflags`"
         export CPPFLAGS="$CPPFLAGS `llvm-config-${{ env.CLANG_VERSION }} --cppflags`"
@@ -861,15 +981,52 @@ jobs:
         export CCACHE_SLOPPINESS=${{ env.CCACHE_SLOPPINESS }}
 
         ccache -z
-        mkdir -p build
-        cd build
-
-        ccache -z
-        cmake -G Ninja ${{ env.CCACHE_CFLAGS }} -S qtcreator -B build -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX=$TLD/${{ env.PREFIX_DIR }} -DCMAKE_SHARED_LIBS=OFF
+        mkdir -pv build
+        cmake -G Ninja ${{ env.CCACHE_CFLAGS }} -S $TLD/${{ env.SOURCE_DIR }} -B build -DCMAKE_C_COMPILER=$CC -DCMAKE_CXX_COMPILER=$CXX -DCMAKE_BUILD_TYPE=Release "-DCMAKE_PREFIX_PATH=$TLD/${{ env.QT6_STATIC_DIR }}/lib/cmake;$LLVM_INSTALL_DIR" -DCMAKE_INSTALL_PREFIX=$TLD/${{ env.PREFIX_DIR }} -DBUILD_SHARED_LIBS=OFF
         cmake --build . --parallel $(nproc)
         cmake --install .
         echo "$(ccache -s | grep -a2 Hits)" > $CCACHE_DIR/ccache-hits.txt
 
+        mkdir -pv ${{ env.FLAGS_DIR }}/complete ${{ env.FLAGS_DIR }}/ccache
+        touch ${{ env.FLAGS_DIR }}/complete/flag
+        touch ${{ env.FLAGS_DIR }}/ccache/flag
+
+    - name: Cache QtCreator ccache Completion Flags
+      id: qtcreator_ccache_flags
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/ccache
+        key: qtcreator-ccache-flags
+      
+    - name: Cache QtCreator Build Completion Flags
+      id: qtcreator_static_flags
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.FLAGS_DIR }}/complete
+        key: qtcreator-static-flags
+      
+    - name: Cache QtCreator Build
+      id: qtcreator_static
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.PREFIX_DIR }}
+        key: qtcreator-static
+
+    - name: Cache QtCreator ccache
+      id: qtcreator_ccache
+      if: steps.qtcreator_static_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          ${{ env.CCACHE_DIR }}
+        key: qtcreator-ccache
+  
   qt5linux:
     name: Compile Qt5 Linux Dynamic Build
     runs-on: ubuntu-22.04
@@ -879,6 +1036,7 @@ jobs:
       FLAGS_DIR: "flags/qt5/linux"
       DEPS_DIR: "shared/deps"
       QT5_DEPS_DIR: "qt5/deps"
+      QT5_STATIC_DIR: "qt5/static"
       SOURCE_DIR: "qt5/source"
       PREFIX_DIR: "qt5/linux"
       CCACHE_DIR: "qt5/ccache"
@@ -904,15 +1062,15 @@ jobs:
         restore-keys: |
           qt5-ccache-${{ hashFiles('**/ccache-hits.txt') }}-
 
-    - name: Load Qt5 Cache
+    - name: Load Qt5 Static Cache
       uses: actions/cache/restore@v4
       if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
       with:
         path: |
-          ${{ env.PREFIX_DIR }}
-        key: qt5-linux
+          ${{ env.QT5_STATIC_DIR }}
+        key: qt5-static
         restore-keys: |
-          qt5-linux-
+          qt5-static-
 
     - name: Load Qt Shared Dependencies cache
       id: qt5_shared_deps
@@ -964,6 +1122,13 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
 
+    - name: Fix libunwind Clang 17 Build Issue
+      id: qt5_patch
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
     - name: Build Qt5
       id: qt5_build
       if: steps.qt5_linux_completion.outputs.cache-hit != 'true'
@@ -991,7 +1156,7 @@ jobs:
         mkdir -p build
         cd build
 
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -L$QT5_DIR/static/lib -I$QT5_DIR/static/include -shared ${{ env.QT_CMAKE_FLAGS }}
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -platform linux-clang ${{ env.QT_BUILD_FLAGS }} -L${{ env.QT5_STATIC_DIR }}/lib ${{ env.QT_CMAKE_FLAGS }} -rpath $ORIGIN/../lib
         make -j$(nproc)
         make install
         cd $TLD
@@ -1015,7 +1180,7 @@ jobs:
   qt5freebsd:
     name: Compile Qt5 FreeBSD Dynamic Build
     runs-on: ubuntu-22.04
-    needs: [qtdepscache, qt5static]
+    needs: [qtdepscache, qt5static, freebsdsysrootprepare]
 
     env:
       FLAGS_DIR: "flags/qt5/freebsd"
@@ -1024,6 +1189,7 @@ jobs:
       SOURCE_DIR: "qt5/source"
       PREFIX_DIR: "qt5/freebsd"
       CCACHE_DIR: "qt5/ccache"
+      SYSROOT_DIR: "sysroot/freebsd"
 
     steps:
     - name: Load Qt5 FreeBSD Completion Flag
@@ -1035,23 +1201,6 @@ jobs:
         key: qt5-freebsd-flags
         restore-keys: |
           qt5-freebsd-flags-
-
-    - name: Create FreeBSD Sysroot
-      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
-      uses: vmactions/freebsd-vm@v1.0.8
-      with:
-        usesh: true
-        sync: rsync
-        run: |
-          fetch https://download.freebsd.org/releases/amd64/amd64/${{ env.BSD_VERSION }}-RELEASE/base.txz
-          mkdir -pv sysroot
-          cd sysroot
-          tar xvf ../base.txz
-          sudo chown -Rv 0:0 .
-          pkg install -y llvm${{ env.CLANG_VERSION }} gcc13
-          cp -rfv /usr/local usr
-          cd ..
-          mv -v base.txz /tmp
 
     - name: Load Qt5 ccache
       id: qt5_ccache
@@ -1096,6 +1245,17 @@ jobs:
         restore-keys: |
           qt5-source-
 
+    - name: Load FreeBSD Sysroot
+      id: freebsd_sysroot
+      if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          sysroot
+        key: freebsd-sysroot
+        restore-keys: |
+          freebsd-sysroot-
+
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
@@ -1123,14 +1283,19 @@ jobs:
         bash $TLD/thunder/build/install-qt-shared-deps.sh
         bash $TLD/thunder/build/install-qt5-deps.sh
 
+    - name: Fix libunwind Clang 17 Build Issue
+      id: qt5_patch
+      if: steps.qt5_source_completion.outputs.cache-hit != 'true'
+      run: |
+        export TLD=$PWD
+        sudo cp -rfv $TLD/thunder/build/linux/pkgconfig/*.pc /usr/lib/pkgconfig
+
     - name: Build Qt5
       id: qt5_build
       if: steps.qt5_freebsd_completion.outputs.cache-hit != 'true'
       run: |
         export TLD=$PWD
-        export SYSROOT_DIR=$TLD/sysroot
         export CCACHE_DIR=$TLD/${{ env.CCACHE_DIR }}
-        export PREFIX_DIR=$TLD/qt5/freebsd
         export CCACHE_COMPRESS=${{ env.CCACHE_COMPRESS }}
         export CCACHE_COMPRESSLEVEL=${{ env.CCACHE_COMPRESSLEVEL }}
         export CCACHE_MAXSIZE=${{ env.CCACHE_MAXSIZE }}
@@ -1148,12 +1313,7 @@ jobs:
         mkdir -p build
         cd build
 
-        #bash -c "alias clang=/usr/bin/clang-${{ env.CLANG_VERSION }}"
-        #bash -c "alias clang++=/usr/bin/clang++-${{ env.CLANG_VERSION }}"
-        #bash -c "alias llvm-config=/usr/bin/llvm-config-${{ env.CLANG_VERSION }}"
-        #sudo mv -v /usr/lib/llvm-14 /usr/lib/llvm-bck
-        #sudo ln -sv /usr/lib/llvm-${{ env.CLANG_VERSION }} /usr/lib/llvm-14
-        $TLD/${{ env.SOURCE_DIR }}/configure -prefix $PREFIX_DIR -c++std ${{ env.CXX_STANDARD_VERSION }} -xplatform freebsd-clang ${{ env.QT_BUILD_FLAGS }} -sysroot $SYSROOT_DIR
+        $TLD/${{ env.SOURCE_DIR }}/configure -prefix ${{ env.PREFIX_DIR }} -c++std ${{ env.CXX_STANDARD_VERSION }} -xplatform freebsd-clang ${{ env.QT_BUILD_FLAGS }} -L${{ env.QT5_STATIC_DIR }}/lib -sysroot ${{ env.SYSROOT_DIR }} -rpath $ORIGIN/../lib
         make -j$(nproc)
         make install
         cd $TLD
